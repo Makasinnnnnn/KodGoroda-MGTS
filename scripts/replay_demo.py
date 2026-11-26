@@ -11,6 +11,7 @@ def main():
     token = os.getenv("MGTS_WEBHOOK_TOKEN")
     if not token:
         raise SystemExit("Set MGTS_WEBHOOK_TOKEN to the value used by the running demo.")
+    port = int(os.getenv("PORT", "8080"))
     for role, person, department in [("intern", 2, "IT"), ("mentor", 3, "HR-блок")]:
         scores = dict.fromkeys(FIELDS[role]["scores"].values(), 4)
         payload = {
@@ -27,7 +28,7 @@ def main():
             payload["mentor_id"] = "MENTOR-3"
             payload["comments"] = {"work_comment": "Синтетический ответ: задачи выполнены в срок."}
         request = Request(
-            f"http://127.0.0.1:8080/webhooks/yandex/{role}",
+            f"http://127.0.0.1:{port}/webhooks/yandex/{role}",
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json", "X-Webhook-Token": token},
         )

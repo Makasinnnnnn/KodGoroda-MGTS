@@ -3,10 +3,10 @@
 {% block content %}
 <a class="back-link" href="{{ overview_url }}#interns">К списку стажёров</a>
 <div class="heading detail-heading">
-  <div><h1>Стажёр {{ intern_id }}</h1><p class="muted">{{ department }} · Записей в истории: {{ versions }}</p>
-  {% if synthetic %}<p class="muted">Демонстрационные данные</p>{% endif %}</div>
+  <div><h1>Стажёр {{ intern_id }}</h1><p class="muted">{{ department }} · Записей в истории: {{ versions }}</p></div>
   <a class="button button-secondary" href="{{ detail_url }}">Обновить страницу</a>
 </div>
+{% if synthetic %}<p class="notice">В карточке есть демонстрационные анкеты.</p>{% endif %}
 <nav class="section-nav" aria-label="На этой странице">
   <a href="#scores">Динамика оценок</a>
   <a href="#analysis">Разбор комментариев</a>
@@ -56,6 +56,7 @@
   {% if state == 'ready' %}
   <div class="analysis-copy">
     <p>{{ result.summary }}</p>
+    {% if result.insufficient_data %}<p class="muted">Комментариев недостаточно для уверенного вывода.</p>{% endif %}
     <p><strong>Что может сделать HR.</strong> {{ result.action }}</p>
   </div>
   {% for theme in result.themes %}
@@ -92,7 +93,8 @@
           {% for key, comment in row.comments.items() if comment %}
           <blockquote id="comment-{{ row.record_id }}-{{ key }}" tabindex="-1"><small>{{ field_labels[key] }}</small><p>{{ comment }}</p></blockquote>
           {% endfor %}
-          <small>Источник · {% if row.source == 'yandex_forms' and row.form_id.startswith('local-demo-') %}локальная симуляция вебхука{% else %}{{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы','synthetic_demo':'синтетическая история'}.get(row.source, row.source) }}{% endif %}</small>
+          <small>Источник · {% if row.source == 'yandex_forms' and row.form_id.startswith('local-demo-') %}локальная проверка вебхука{% else %}{{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы','synthetic_demo':'синтетическая история'}.get(row.source, row.source) }}{% endif %}</small>
+          {% if row.submitted_at %}<small>Дата ответа · <time datetime="{{ row.submitted_at }}">{{ row.submitted_at[:19]|replace('T', ' ') }} UTC</time></small>{% endif %}
           {% else %}<p class="muted">Нет ответа</p>{% endif %}
         </div>
         {% endfor %}

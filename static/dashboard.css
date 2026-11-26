@@ -11,6 +11,7 @@
 }
 .dashboard h1 { font-size: clamp(1.85rem, 3.05vw, 2.75rem); }
 .dashboard h3 { font-size: 1.12rem; font-weight: 500; }
+.dashboard .trend-heading { margin-top: 1.25rem; }
 .dashboard strong { font-weight: 500; }
 .dashboard small, .muted { color: var(--muted); }
 .dashboard small { display: block; font-size: 0.8125rem; }
@@ -44,7 +45,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(0, 12rem) minmax(0, 21rem) auto;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 21rem) minmax(0, 15rem);
   align-items: end;
   justify-content: start;
   gap: 0.85rem;
@@ -85,6 +86,7 @@
 .dashboard-section > h2 { margin-bottom: 0.45rem; }
 .dashboard-section > .muted { margin-bottom: 0.85rem; }
 .notice { padding: 0.78rem 1rem; border-radius: 0.7rem; background: var(--paper); }
+.dashboard .detail-heading + .notice { margin-top: 0.8rem; }
 .dashboard .stats, .dashboard .sources {
   display: flex;
   flex-wrap: wrap;
@@ -143,7 +145,8 @@ th { font-weight: 500; }
   text-align: center;
 }
 .trend li { display: grid; justify-items: center; min-width: 0; }
-.trend span { font-size: 0.8125rem; }
+.trend a { font-size: 0.8125rem; }
+.trend a[aria-current] { color: var(--accent, var(--link)); font-weight: 500; }
 .bar {
   display: flex;
   align-items: end;
@@ -225,7 +228,7 @@ blockquote:target { background: #dcecf9; }
   .filters { grid-template-columns: minmax(0, 1fr); gap: 0.7rem; margin-block: 1rem; }
   .dashboard-section { margin-top: 1.75rem; }
   .trend { gap: 0.3rem; padding-inline: 0.35rem; }
-  .trend span, .trend small { font-size: 0.72rem; }
+  .trend a, .trend small { font-size: 0.72rem; }
   .pair { grid-template-columns: minmax(0, 1fr); padding-inline: 0; }
   .dashboard .scroll-hint { display: block; margin-top: 0.5rem; font-size: 0.8125rem; }
 }

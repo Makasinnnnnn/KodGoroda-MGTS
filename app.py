@@ -471,10 +471,13 @@ def create_app(config=None):
         if selected_month not in range(1, 7):
             selected_month = 6
         months = chapter(rows, intern_id, result.get("themes", []))
-        filters = dict(month=selected_month, department=request.args.get("department") or None,
-                       signal=request.args.get("signal") or None)
+        department = next(iter(rows.values()))["department"]
+        selected_department = department if request.args.get("department") == department else None
+        selected_signal = request.args.get("signal")
+        filters = dict(month=selected_month, department=selected_department,
+                       signal=selected_signal if selected_signal in COLORS else None)
         return render_template("detail.html", intern_id=intern_id, versions=versions,
-                               department=next(iter(rows.values()))["department"], field_labels=LABELS, fields=FIELDS,
+                               department=department, field_labels=LABELS, fields=FIELDS,
                                months=months, current_month=months[selected_month - 1],
                                state=state, result=result,
                                synthetic=intern_id.startswith("DEMO-") or any(
