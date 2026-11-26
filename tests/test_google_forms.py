@@ -119,6 +119,7 @@ class GoogleFormsTest(unittest.TestCase):
                 include_edit = True
                 poll_once()
                 self.assertEqual(count(), 3)
+                self.assertIn("стажёры 1, наставники 1", client.get("/").get_data(as_text=True))
                 page = client.get(detail)
                 self.assertIn(b"SIMULATED-revision", page.data)
                 self.assertNotIn(b"SIMULATED-intern", page.data)

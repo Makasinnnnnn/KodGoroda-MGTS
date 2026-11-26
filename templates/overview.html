@@ -36,6 +36,11 @@
 {% if synthetic %}<p class="notice">В сводку включены демонстрационные анкеты.</p>{% endif %}
 <section id="interns" class="dashboard-section" aria-labelledby="interns-heading">
   <h2 id="interns-heading">Стажёры{% if month == 'all' %} · все 6 месяцев{% else %} · месяц {{ month }}{% endif %}</h2>
+  {% if month == 'all' %}
+  <nav class="section-nav" aria-label="Месяцы программы">
+    {% for period in periods %}<a href="#month-{{ period.month }}">Месяц {{ period.month }}</a>{% endfor %}
+  </nav>
+  {% endif %}
   {% for period in periods %}
   {% if month == 'all' %}<h3 id="month-{{ period.month }}">Месяц {{ period.month }}</h3>{% endif %}
   <dl class="stats">
@@ -102,6 +107,8 @@
       <dt>Google Forms</dt>
       <dd>{{ {'disabled':'Не подключён','pending':'Ожидаем первый опрос API','ready':'Синхронизация работает','error':'Ошибка синхронизации или некорректные ответы'}[poll.state] }}</dd>
       {% if poll.checked_at %}<dd class="muted">Последняя проверка · {{ poll.checked_at }}</dd>{% endif %}
+      <dd>Анкета → Google Forms API → история стажёра</dd>
+      <dd>Получено из форм · стажёры {{ google_counts.intern }}, наставники {{ google_counts.mentor }}</dd>
     </div>
   </dl>
 </section>

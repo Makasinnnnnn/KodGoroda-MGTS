@@ -78,6 +78,14 @@ class AnalysisContractTest(unittest.TestCase):
             ask_deepseek(self.evidence, "synthetic-key", "deepseek-flash", "https://example.invalid")
         server.assert_not_called()
 
+    def test_model_adapter_retries_after_timeout(self):
+        content = json.dumps(model_reply([{"id": "a", "kind": "issue"}]))
+        response = io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode())
+        with patch("app.urlopen", side_effect=[TimeoutError(), response]) as server, patch("app.sleep"):
+            result = ask_deepseek(self.evidence, "synthetic-key", "deepseek-flash")
+        self.assertEqual(server.call_count, 2)
+        self.assertEqual(result["themes"][0]["evidence"][0]["id"], "a")
+
 
 class AnalysisWorkflowTest(unittest.TestCase):
     def test_timeout_duplicate_and_edit_while_model_pending(self):

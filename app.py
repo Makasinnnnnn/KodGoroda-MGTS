@@ -10,9 +10,11 @@ from datetime import datetime, timezone
 from http.client import HTTPException
 from pathlib import Path
 from threading import Event
-from urllib.error import HTTPError
+from time import sleep
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, render_template, request, url_for
 from waitress import serve
 from google_forms import start_polling
@@ -254,8 +256,18 @@ def ask_deepseek(evidence, key, model, base_url=DEEPSEEK_DIRECT_URL):
     query = Request(f"{base_url}/chat/completions", data=encode(payload).encode("utf-8"),
                     headers={"Content-Type": "application/json"})
     query.add_unredirected_header("Authorization", f"Bearer {key}")
-    with urlopen(query, timeout=25) as response:
-        message = json.load(response)["choices"][0]["message"]["content"]
+    for attempt in range(2):
+        try:
+            with urlopen(query, timeout=20) as response:
+                message = json.load(response)["choices"][0]["message"]["content"]
+            break
+        except HTTPError as exc:
+            if attempt or exc.code not in (408, 500, 502, 503, 504):
+                raise
+        except (URLError, TimeoutError, ConnectionError, HTTPException):
+            if attempt:
+                raise
+        sleep(1)
     return validated_analysis(json.loads(message), evidence)
 
 
@@ -422,11 +434,19 @@ def create_app(config=None):
                     analyses[row["intern_id"]] = (row["state"], json.loads(row["result"]) if row["result"] else {})
             versions = db.execute("SELECT COUNT(*) FROM submissions WHERE (? IS NULL OR intern_id=?)",
                                   (intern_id, intern_id)).fetchone()[0]
-        return rows, analyses, versions
+            google_counts = dict.fromkeys(FIELDS, 0)
+            if intern_id is None:
+                google_counts.update(db.execute("""
+                    SELECT json_extract(payload, '$.role'), COUNT(DISTINCT form_id || ':' ||
+                        substr(submission_id, 1, instr(submission_id, ':') - 1))
+                    FROM submissions WHERE source = 'google_forms'
+                    GROUP BY json_extract(payload, '$.role')
+                """).fetchall())
+        return rows, analyses, versions, google_counts
 
     @app.get("/")
     def overview():
-        rows, analyses, versions = snapshot()
+        rows, analyses, versions, google_counts = snapshot()
         requested_month = request.args.get("month")
         month = "all" if requested_month == "all" else request.args.get("month", 6, type=int)
         if month != "all" and month not in range(1, 7):
@@ -474,6 +494,7 @@ def create_app(config=None):
         return render_template("overview.html", periods=periods, month=month, versions=versions,
                                departments=sorted(set(people.values())), selected=selected, trend=trend,
                                poll=poll_status.copy(), selected_signal=selected_signal, colors=COLORS,
+                               google_counts=google_counts,
                                overview_url=url_for("overview", month=month, department=selected or None,
                                                     signal=selected_signal or None),
                                person_count=periods[0]["person_count"], has_history=bool(people),
@@ -481,12 +502,17 @@ def create_app(config=None):
 
     @app.get("/interns/<intern_id>")
     def detail(intern_id):
-        rows, analyses, versions = snapshot(intern_id)
+        rows, analyses, versions, _ = snapshot(intern_id)
         if not rows:
             abort(404)
         has_synthetic = any(row["source"] == "synthetic_demo" for row in rows.values())
-        analysis_enabled = model_enabled and (not synthetic_only or has_synthetic)
-        state, result = (analyses.get(intern_id, ("pending", {})) if analysis_enabled else ("disabled", {}))
+        state, result = "disabled", {}
+        if not app.config["DEEPSEEK_API_KEY"]:
+            state = "missing_key"
+        elif synthetic_only and not has_synthetic:
+            state = "synthetic_only"
+        elif model_enabled:
+            state, result = analyses.get(intern_id, ("pending", {}))
         selected_month = request.args.get("month", 6, type=int)
         if selected_month not in range(1, 7):
             selected_month = 6
@@ -511,5 +537,6 @@ def create_app(config=None):
 
 
 if __name__ == "__main__":
+    load_dotenv(Path(__file__).with_name(".env"))
     serve(create_app(), host="0.0.0.0" if os.getenv("MGTS_CONTAINER") else "127.0.0.1",
           port=int(os.getenv("PORT", "8080")))

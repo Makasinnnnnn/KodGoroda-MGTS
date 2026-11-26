@@ -72,7 +72,23 @@
   </details>
   {% endfor %}
   {% else %}
-  <p class="notice">{{ {'disabled':'DeepSeek не подключён или отправка комментариев отключена.','pending':'Разбор обновляется.','error':'DeepSeek не вернул пригодный результат.','no_comments':'Нет текстовых ответов.'}.get(state,'Разбор пока недоступен.') }}</p>
+  <p class="notice">{{ {'missing_key':'Для разбора комментариев администратору нужно настроить ключ DeepSeek.',
+                       'synthetic_only':'В демонстрационном режиме DeepSeek анализирует только синтетические отзывы.',
+                       'disabled':'Отправка комментариев в DeepSeek отключена в настройках.',
+                       'pending':'Разбор обновляется.',
+                       'error':'DeepSeek не вернул пригодный результат.',
+                       'no_comments':'Нет текстовых ответов.'}.get(state,'Разбор пока недоступен.') }}</p>
+  {% if current_month.warnings %}
+  <div class="analysis-copy">
+    <h3>Что может сделать HR · по оценкам за месяц {{ current_month.period }}</h3>
+    {% if current_month.gap is not none and current_month.gap|abs >= 2 %}
+    <p>Сверьте со стажёром и наставником ожидания на примере одной задачи. Уточните критерии готовности и договоритесь, когда проверить результат.</p>
+    {% else %}
+    <p>Обсудите со стажёром или наставником оценку, которая вызвала сигнал. Уточните причину и договоритесь, что проверить к следующему опросу.</p>
+    {% endif %}
+    <a href="#month-{{ current_month.period }}">К оценкам и причинам сигнала</a>
+  </div>
+  {% endif %}
   {% endif %}
 </section>
 <section id="answers" class="dashboard-section" aria-labelledby="answers-heading">
