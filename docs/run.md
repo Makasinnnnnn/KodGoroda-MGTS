@@ -2,11 +2,9 @@
 
 ## Синтетическое демо из чистого клона
 
-Нужны Docker и Docker Compose. После сборки локальному сценарию достаточно доступа к loopback.
+Нужны Docker и Docker Compose. Склонируйте ветку с этой инструкцией и выполните команды в корне репозитория. Для демо используйте пустую папку `data/`.
 
 ```sh
-git clone --branch astra/final-delivery https://github.com/Makasinnnnnn/KodGoroda-MGTS.git
-cd KodGoroda-MGTS
 docker compose build
 docker compose run --rm dashboard python -m scripts.seed_demo
 ```
