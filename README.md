@@ -2,6 +2,10 @@
 
 Репозиторий команды для реализации финального кейса.
 
+- [Полный промпт для Астры](docs/ASTRA-PROMPT.md)
+- [Задание организаторов](docs/task/case.md), [форма стажёра](docs/task/intern-form.md), [форма наставника](docs/task/mentor-form.md)
+- [Предфинальный контекст и указатель источников](docs/context/07-source-index.md)
+
 - [Запуск, Google Forms и DeepSeek](docs/run.md)
 - [ТЗ и контракт двух анкет](docs/09-final-spec-and-data.md)
 - [План реализации и сдачи на 180 минут](docs/10-final-execution.md)
