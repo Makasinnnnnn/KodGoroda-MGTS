@@ -271,6 +271,7 @@ def create_app(config=None):
         DEEPSEEK_BASE_URL=os.getenv("DEEPSEEK_BASE_URL", DEEPSEEK_DIRECT_URL),
         DEEPSEEK_MODEL=os.getenv("DEEPSEEK_MODEL", "deepseek-flash"),
         DEEPSEEK_SEND_COMMENTS=os.getenv("DEEPSEEK_SEND_COMMENTS") == "1",
+        DEEPSEEK_SYNTHETIC_ONLY=os.getenv("DEEPSEEK_SEND_COMMENTS") == "synthetic",
         MAX_CONTENT_LENGTH=64 * 1024,
     )
     if config:
@@ -278,7 +279,9 @@ def create_app(config=None):
     db_path = Path(app.config["DATABASE"])
     db_path.parent.mkdir(parents=True, exist_ok=True)
     executor = ThreadPoolExecutor(max_workers=2)
-    model_enabled = bool(app.config["DEEPSEEK_API_KEY"] and app.config["DEEPSEEK_SEND_COMMENTS"])
+    synthetic_only = app.config["DEEPSEEK_SYNTHETIC_ONLY"]
+    model_enabled = bool(app.config["DEEPSEEK_API_KEY"]
+                         and (app.config["DEEPSEEK_SEND_COMMENTS"] or synthetic_only))
     poll_status = {"state": "disabled", "checked_at": None, "errors": 0}
 
     def connect():
@@ -332,6 +335,8 @@ def create_app(config=None):
         if not model_enabled:
             return None
         current = sorted(current_rows(db, intern_id).values(), key=lambda row: (row["period"], row["role"]))
+        if synthetic_only:
+            current = [row for row in current if row["source"] == "synthetic_demo"]
         evidence = take_evidence(current)
         versions = [row["record_id"] for row in current]
         cache_key = ["deepseek", app.config["DEEPSEEK_BASE_URL"], app.config["DEEPSEEK_MODEL"], 3, versions, evidence]
@@ -422,51 +427,66 @@ def create_app(config=None):
     @app.get("/")
     def overview():
         rows, analyses, versions = snapshot()
-        month = request.args.get("month", 6, type=int)
-        if month not in range(1, 7):
+        requested_month = request.args.get("month")
+        month = "all" if requested_month == "all" else request.args.get("month", 6, type=int)
+        if month != "all" and month not in range(1, 7):
             month = 6
         people = {row["intern_id"]: row["department"] for row in rows.values()}
         selected = request.args.get("department", "")
         selected_signal = request.args.get("signal", "")
         if selected_signal not in COLORS:
             selected_signal = ""
-        cards = []
+        cards_by_month = {period: [] for period in (range(1, 7) if month == "all" else (month,))}
         for intern_id, department in sorted(people.items()):
             if selected and department != selected:
                 continue
             themes = analyses.get(intern_id, ("", {}))[1].get("themes", [])
-            card = chapter(rows, intern_id, themes)[month - 1]
-            cards.append(dict(card, intern_id=intern_id, department=department))
+            for card in chapter(rows, intern_id, themes):
+                if card["period"] in cards_by_month:
+                    cards_by_month[card["period"]].append(dict(card, intern_id=intern_id, department=department))
         priorities = {"red": 0, "yellow": 1, "gray": 2, "green": 3}
-        cards.sort(key=lambda card: priorities[card["color"]])
-        signal_counts = dict.fromkeys(COLORS, 0)
-        for card in cards:
-            signal_counts[card["color"]] += 1
+        periods = []
+        for period, cards in cards_by_month.items():
+            cards.sort(key=lambda card: priorities[card["color"]])
+            periods.append(dict(month=period, person_count=len(cards),
+                                intern_count=sum(bool(card["intern"]) for card in cards),
+                                mentor_count=sum(bool(card["mentor"]) for card in cards),
+                                cards=[card for card in cards if not selected_signal or card["color"] == selected_signal]))
         trend = []
+        metrics = ("satisfaction", "workload")
+        previous = [None] * len(metrics)
         for period in range(1, 7):
             scores = [row["scores"] for row in rows.values() if row["role"] == "intern"
                       and row["period"] == period and (not selected or row["department"] == selected)]
             averages = [round(sum(row[key] for row in scores) / len(scores), 1) if scores else None
-                        for key in ("satisfaction", "workload")]
-            trend.append((period, *averages, len(scores)))
-        visible_cards = [card for card in cards if not selected_signal or card["color"] == selected_signal]
-        return render_template("overview.html", cards=visible_cards, month=month, versions=versions,
+                        for key in metrics]
+            alerts = []
+            for key, average, prior in zip(metrics, averages, previous):
+                low = sum(row[key] <= 2 for row in scores)
+                if low:
+                    alerts.append(("red", f"Оценок 1–2: {low}"))
+                elif average is not None and prior is not None and round(prior - average, 1) >= 1:
+                    alerts.append(("yellow", f"Снижение на {prior - average:.1f}".replace(".", ",")))
+                else:
+                    alerts.append(None)
+            trend.append((period, *averages, len(scores), alerts))
+            previous = averages
+        return render_template("overview.html", periods=periods, month=month, versions=versions,
                                departments=sorted(set(people.values())), selected=selected, trend=trend,
                                poll=poll_status.copy(), selected_signal=selected_signal, colors=COLORS,
                                overview_url=url_for("overview", month=month, department=selected or None,
                                                     signal=selected_signal or None),
-                               signal_counts=signal_counts,
-                               person_count=len(cards), has_history=bool(people),
-                               synthetic=any(row["source"] == "synthetic_demo" for row in rows.values()),
-                               intern_count=sum(bool(c["intern"]) for c in cards),
-                               mentor_count=sum(bool(c["mentor"]) for c in cards))
+                               person_count=periods[0]["person_count"], has_history=bool(people),
+                               synthetic=any(row["source"] == "synthetic_demo" for row in rows.values()))
 
     @app.get("/interns/<intern_id>")
     def detail(intern_id):
         rows, analyses, versions = snapshot(intern_id)
         if not rows:
             abort(404)
-        state, result = (analyses.get(intern_id, ("pending", {})) if model_enabled else ("disabled", {}))
+        has_synthetic = any(row["source"] == "synthetic_demo" for row in rows.values())
+        analysis_enabled = model_enabled and (not synthetic_only or has_synthetic)
+        state, result = (analyses.get(intern_id, ("pending", {})) if analysis_enabled else ("disabled", {}))
         selected_month = request.args.get("month", 6, type=int)
         if selected_month not in range(1, 7):
             selected_month = 6
@@ -480,12 +500,12 @@ def create_app(config=None):
                                department=department, field_labels=LABELS, fields=FIELDS,
                                months=months, current_month=months[selected_month - 1],
                                state=state, result=result,
-                               synthetic=intern_id.startswith("DEMO-") or any(
-                                   row["source"] == "synthetic_demo" for row in rows.values()
-                               ),
+                               synthetic=intern_id.startswith("DEMO-") or has_synthetic,
                                selected_month=selected_month,
-                               overview_url=url_for("overview", **filters),
-                               detail_url=url_for("detail", intern_id=intern_id, **filters))
+                               overview_url=url_for("overview", **dict(filters, month=(
+                                   "all" if request.args.get("overview_month") == "all" else selected_month))),
+                               detail_url=url_for("detail", intern_id=intern_id, **filters,
+                                                  overview_month="all" if request.args.get("overview_month") == "all" else None))
 
     return app
 

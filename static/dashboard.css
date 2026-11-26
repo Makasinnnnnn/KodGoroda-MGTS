@@ -158,6 +158,9 @@ th { font-weight: 500; }
   overflow: hidden;
 }
 .bar i { width: 100%; background: var(--blue); }
+.bar-red i { background: #8c2b22; }
+.bar-yellow i { background: #956000; }
+.trend-alert { max-width: 100%; padding-inline: 0.2rem; overflow-wrap: anywhere; }
 
 .disclosure { margin-top: 0.55rem; }
 .disclosure summary {

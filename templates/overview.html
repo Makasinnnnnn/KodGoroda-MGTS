@@ -13,6 +13,7 @@
 <form class="filters" method="get" action="{{ url_for('overview') }}">
   <label>Период
     <select name="month">
+      <option value="all"{% if month == 'all' %} selected{% endif %}>Все 6 месяцев</option>
       {% for i in range(1, 7) %}<option value="{{ i }}"{% if i == month %} selected{% endif %}>Месяц {{ i }}</option>{% endfor %}
     </select>
   </label>
@@ -34,21 +35,23 @@
 </form>
 {% if synthetic %}<p class="notice">В сводку включены демонстрационные анкеты.</p>{% endif %}
 <section id="interns" class="dashboard-section" aria-labelledby="interns-heading">
-  <h2 id="interns-heading">Стажёры · месяц {{ month }}</h2>
+  <h2 id="interns-heading">Стажёры{% if month == 'all' %} · все 6 месяцев{% else %} · месяц {{ month }}{% endif %}</h2>
+  {% for period in periods %}
+  {% if month == 'all' %}<h3 id="month-{{ period.month }}">Месяц {{ period.month }}</h3>{% endif %}
   <dl class="stats">
-    <div><dt>Анкеты стажёров</dt><dd>{{ intern_count }} из {{ person_count }}</dd></div>
-    <div><dt>Анкеты наставников</dt><dd>{{ mentor_count }} из {{ person_count }}</dd></div>
+    <div><dt>Анкеты стажёров</dt><dd>{{ period.intern_count }} из {{ period.person_count }}</dd></div>
+    <div><dt>Анкеты наставников</dt><dd>{{ period.mentor_count }} из {{ period.person_count }}</dd></div>
   </dl>
-  {% if cards %}
-  <table class="roster" role="table" aria-labelledby="interns-heading">
+  {% if period.cards %}
+  <table class="roster" role="table" aria-labelledby="{{ 'month-' ~ period.month if month == 'all' else 'interns-heading' }}">
     <thead role="rowgroup"><tr role="row">
       <th scope="col" role="columnheader">Стажёр</th><th scope="col" role="columnheader">Подразделение</th>
       <th scope="col" role="columnheader">Анкета стажёра</th><th scope="col" role="columnheader">Анкета наставника</th><th scope="col" role="columnheader">Сигнал</th>
     </tr></thead>
     <tbody role="rowgroup">
-      {% for card in cards %}
+      {% for card in period.cards %}
       <tr role="row">
-        <th scope="row" role="rowheader"><a href="{{ url_for('detail', intern_id=card.intern_id, month=month, department=selected or None, signal=selected_signal or None) }}">{{ card.intern_id }}</a></th>
+        <th scope="row" role="rowheader"><a href="{{ url_for('detail', intern_id=card.intern_id, month=period.month, department=selected or None, signal=selected_signal or None, overview_month='all' if month == 'all' else None) }}">{{ card.intern_id }}</a></th>
         <td role="cell" class="roster-department">{{ card.department }}</td>
         <td role="cell"><span class="mobile-label" aria-hidden="true">Стажёр</span>{{ 'Получена' if card.intern else 'Нет ответа' }}</td>
         <td role="cell"><span class="mobile-label" aria-hidden="true">Наставник</span>{{ 'Получена' if card.mentor else 'Нет ответа' }}</td>
@@ -65,21 +68,24 @@
   {% else %}
   <p class="notice">Нет анкет. Добавьте обе книги в папку данных и перезапустите приложение.</p>
   {% endif %}
+  {% endfor %}
 </section>
 <section id="trend" class="dashboard-section" aria-labelledby="trend-heading">
   <h2 id="trend-heading">Динамика оценок</h2>
   <p class="muted">Средняя оценка стажёров из 5{% if selected %} · {{ selected }}{% endif %}</p>
   {% if person_count %}
+    <p class="muted">Красная метка показывает оценки 1–2, жёлтая — снижение средней оценки минимум на 1 балл к предыдущему месяцу.</p>
     {% for metric, heading in [(1, 'Удовлетворённость'), (2, 'Комфортность нагрузки')] %}
     <h3 class="trend-heading">{{ heading }}</h3>
     <ul class="trend" aria-label="{{ heading }}">
-      {% for values in trend %}{% set period, score, count = values[0], values[metric], values[3] %}
+      {% for values in trend %}{% set period, score, count, alert = values[0], values[metric], values[3], values[4][metric - 1] %}
       <li>
         <strong>{{ ('%g'|format(score))|replace('.', ',') if score is not none else '—' }}</strong>
-        <div class="bar" aria-hidden="true"><i style="height: {{ (score or 0) * 20 }}%"></i></div>
+        <div class="bar{% if alert %} bar-{{ alert[0] }}{% endif %}" aria-hidden="true"><i style="height: {{ (score or 0) * 20 }}%"></i></div>
         <a href="{{ url_for('overview', month=period, department=selected or None, signal=selected_signal or None, _anchor='trend') }}"
            {% if month == period %}aria-current="true"{% endif %}>Месяц {{ period }}</a>
         <small>{{ count }} отв.</small>
+        {% if alert %}<small class="badge trend-alert {{ alert[0] }}">{{ alert[1] }}</small>{% endif %}
       </li>
       {% endfor %}
     </ul>
