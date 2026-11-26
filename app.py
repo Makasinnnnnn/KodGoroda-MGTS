@@ -11,14 +11,14 @@ from pathlib import Path
 from threading import Event
 from urllib.request import Request, urlopen
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, url_for
 from waitress import serve
 from google_forms import start_polling
 
 from scripts.import_history import FIELDS, parse_period, read_workbook
 
 
-LABELS = {key: label for fields in FIELDS.values() for label, key in fields["scores"].items()}
+LABELS = {key: label for fields in FIELDS.values() for group in fields.values() for label, key in group.items()}
 TASK = {"intern": "task_clarity", "mentor": "task_understanding"}
 THEMES = {"задачи", "поддержка", "нагрузка", "команда", "развитие", "прочее"}
 COLORS = {"green": "Положительная оценка", "yellow": "Зона внимания",
@@ -313,6 +313,10 @@ def create_app(config=None):
     def health():
         return {"status": "ok"}
 
+    @app.get("/start")
+    def start():
+        return render_template("start.html")
+
     @app.post("/webhooks/yandex/<role>")
     def webhook(role):
         if role not in FIELDS:
@@ -360,6 +364,7 @@ def create_app(config=None):
         return render_template("overview.html", cards=cards, month=month, versions=versions,
                                departments=sorted(set(people.values())), selected=selected, trend=trend,
                                poll=poll_status,
+                               overview_url=url_for("overview", month=month, department=selected or None),
                                synthetic=any(row["source"] == "synthetic_demo" for row in rows.values()),
                                intern_count=sum(bool(c["intern"]) for c in cards),
                                mentor_count=sum(bool(c["mentor"]) for c in cards))
@@ -372,10 +377,18 @@ def create_app(config=None):
         state, result = (analyses.get(intern_id, ("pending", {})) if model_enabled else ("disabled", {}))
         if state == "pending":
             queue_analysis(intern_id)
+        month = request.args.get("month", 6, type=int)
+        if month not in range(1, 7):
+            month = 6
+        department = next(iter(rows.values()))["department"]
+        overview_department = department if request.args.get("department") == department else None
         return render_template("detail.html", intern_id=intern_id, versions=versions,
-                               department=next(iter(rows.values()))["department"], field_labels=LABELS,
+                               department=department, fields=FIELDS, field_labels=LABELS,
                                months=chapter(rows, intern_id, [x for x in result.get("themes", []) if x["repeated"]]),
-                               state=state, result=result, selected_month=request.args.get("month", 6, type=int))
+                               state=state, result=result, selected_month=month,
+                               detail_url=url_for("detail", intern_id=intern_id, month=month,
+                                                  department=overview_department),
+                               overview_url=url_for("overview", month=month, department=overview_department))
 
     return app
 

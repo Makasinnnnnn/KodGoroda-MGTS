@@ -27,7 +27,7 @@
 
 ## Подготовить исторические анкеты
 
-Для запуска с Docker положите две книги в `data/intern.xlsx` и `data/mentor.xlsx`, затем выполните `docker compose up --build`. Откройте [дашборд](http://127.0.0.1:8080). [Запуск без датасета и настройка внешних сервисов](docs/run.md).
+Для запуска с Docker положите две книги в `data/intern.xlsx` и `data/mentor.xlsx`, затем выполните `docker compose up --build`. Откройте [стартовую страницу](http://127.0.0.1:8080/start) или [дашборд](http://127.0.0.1:8080). [Запуск без датасета и настройка внешних сервисов](docs/run.md).
 
 ```powershell
 py -m pip install -r requirements-import.txt
