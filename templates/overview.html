@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="heading"><div><p class="eyebrow">Шесть контрольных точек</p><h1>Обзор программы</h1></div>
+  <a class="button" href="{{ request.full_path }}">Обновить</a>
+</div>
+<form class="filters" method="get">
+  <label>Период<select name="month">{% for i in range(1,7) %}<option value="{{ i }}" {{ 'selected' if i==month }}>Месяц {{ i }}</option>{% endfor %}</select></label>
+  <label>Подразделение<select name="department"><option value="">Все подразделения</option>{% for d in departments %}<option {{ 'selected' if d==selected }}>{{ d }}</option>{% endfor %}</select></label>
+  <button type="submit">Показать</button>
+</form>
+<div class="stats">
+  <div><span>Анкеты стажёров · месяц {{ month }}</span><strong>{{ intern_count }}/{{ cards|length }}</strong></div>
+  <div><span>Анкеты наставников · месяц {{ month }}</span><strong>{{ mentor_count }}/{{ cards|length }}</strong></div>
+  <div><span>Версий анкет в истории</span><strong>{{ versions }}</strong></div>
+</div>
+<p class="status">Google Forms · {{ {'disabled':'не подключён','pending':'первый опрос API','ready':'синхронизация работает','error':'ошибка синхронизации или некорректные ответы'}[poll.state] }}{% if poll.checked_at %} · {{ poll.checked_at }}{% endif %}</p>
+{% if synthetic %}<p class="status"><strong>Демонстрационный режим.</strong> История сгенерирована для проверки приложения.</p>{% endif %}
+<section class="panel">
+  <h2>Удовлетворённость стажировкой</h2>
+  <p class="muted">Средняя оценка стажёров из 5</p>
+  <div class="trend">{% for period, score, count in trend %}
+    <div><strong>{{ score if score is not none else '—' }}</strong><div class="bar"><i style="height:{{ (score or 0) * 20 }}%"></i></div><span>Месяц {{ period }}</span><small>{{ count }} отв.</small></div>
+  {% endfor %}</div>
+</section>
+<section class="panel"><h2>Стажёры · месяц {{ month }}</h2><div class="scroll">
+<table><thead><tr><th>Стажёр</th><th>Подразделение</th><th>Стажёр ответил</th><th>Наставник ответил</th><th>Сигнал</th></tr></thead><tbody>
+{% for card in cards %}<tr><td><a href="{{ url_for('detail', intern_id=card.intern_id, month=month) }}"><strong>{{ card.intern_id }} →</strong></a></td><td>{{ card.department }}</td>
+<td>{{ 'Да' if card.intern else 'Нет ответа' }}</td><td>{{ 'Да' if card.mentor else 'Нет ответа' }}</td>
+<td><span class="badge {{ card.color }}">{{ card.label }}</span>{% if card.warnings %}<small>{{ card.warnings[0] }}</small>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5">Нет анкет. Добавьте обе книги в папку данных и перезапустите приложение.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

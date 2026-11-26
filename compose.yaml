@@ -1,0 +1,13 @@
+services:
+  dashboard:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      DEEPSEEK_SEND_COMMENTS: ${DEEPSEEK_SEND_COMMENTS:-0}
+      MGTS_WEBHOOK_TOKEN: ${MGTS_WEBHOOK_TOKEN:-}
+      GOOGLE_POLL_SECONDS: ${GOOGLE_POLL_SECONDS:-15}
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ intern_id }} · Стажировки МГТС{% endblock %}
+{% block content %}
+<a class="muted" href="{{ url_for('overview',month=selected_month) }}">← Обзор программы</a>
+<div class="heading"><div><p class="eyebrow">{{ department }}</p><h1>Стажёр {{ intern_id }}</h1></div>
+<a class="button" href="{{ request.full_path }}">Обновить</a></div>
+<p class="status">{{ versions }} версий анкет в истории · оценки от 1 до 5</p>
+<section class="panel"><h2>Как менялось понимание задач</h2><div class="scroll"><table>
+<thead><tr><th>Период</th><th>Понятность задач · стажёр</th><th>Понимание задач · наставник</th><th>Разница</th><th>Статус</th></tr></thead>
+<tbody>{% for m in months %}<tr>
+<td>Месяц {{ m.period }}</td><td>{{ m.intern.scores.task_clarity if m.intern else '—' }}</td>
+<td>{{ m.mentor.scores.task_understanding if m.mentor else '—' }}</td><td>{{ '%+d'|format(m.gap) if m.gap is not none else '—' }}</td>
+<td><span class="badge {{ m.color }}">{{ m.label }}</span></td></tr>{% endfor %}</tbody></table></div></section>
+<section class="panel"><h2>Разбор комментариев</h2>
+{% if state=='ready' %}<p>{{ result.summary }}</p><p><strong>Что может сделать HR.</strong> {{ result.action }}</p>
+{% for theme in result.themes %}<details><summary>{{ theme.topic|capitalize }}{% if theme.repeated %} · повторяется{% endif %}</summary>
+{% for e in theme.evidence %}<blockquote><small>Месяц {{ e.month }} · {{ 'стажёр' if e.role=='intern' else 'наставник' }}</small>{{ e.text }}</blockquote>{% endfor %}
+</details>{% endfor %}
+{% else %}<p class="muted">{{ {'disabled':'DeepSeek не подключён или отправка комментариев отключена.','pending':'Разбор обновляется.','error':'DeepSeek не вернул пригодный результат.','no_comments':'Нет текстовых ответов.'}.get(state,'Разбор пока недоступен.') }}</p>{% endif %}
+</section>
+<section class="panel"><h2>Ответы по контрольным периодам</h2>
+{% for m in months %}<details {{ 'open' if selected_month==m.period }}>
+<summary>Месяц {{ m.period }} · {{ m.label }}</summary>
+{% if m.warnings %}<ul>{% for w in m.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+<div class="pair">{% for row, title in [(m.intern,'Стажёр'),(m.mentor,'Наставник')] %}
+<div><h3>{{ title }}</h3>{% if row %}<dl>{% for k,v in row.scores.items() %}<dt>{{ field_labels[k] }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
+{% for comment in row.comments.values() if comment %}<blockquote>{{ comment }}</blockquote>{% endfor %}
+<small>Источник: {{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы'}.get(row.source,row.source) }}</small>
+{% else %}<p class="muted">Нет ответа</p>{% endif %}</div>{% endfor %}</div>
+</details>{% endfor %}</section>
+{% if state=='pending' %}<script>setTimeout(() => { if (!document.querySelector('details:focus')) location.reload(); }, 10000)</script>{% endif %}
+{% endblock %}

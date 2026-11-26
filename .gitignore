@@ -3,6 +3,10 @@
 !.env.example
 .private/
 /data/
+google-client.json
+google-token.json
+google-forms.json
+client_secret*.json
 *.xlsx
 *.xls
 *.db
