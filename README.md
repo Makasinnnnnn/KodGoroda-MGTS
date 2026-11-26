@@ -8,7 +8,5 @@ Google Forms API получает новые ответы, а openpyxl загр�
 - [Настройка Google Forms](docs/run.md#google-forms) и [DeepSeek](docs/run.md#deepseek)
 - [Задание организаторов](docs/task/case.md), [анкета стажёра](docs/task/intern-form.md) и [анкета наставника](docs/task/mentor-form.md)
 - [Контракт данных и контрольные числа](docs/09-final-spec-and-data.md)
-- [Презентация и сценарий защиты](docs/defense/README.md)
-- [Готовая презентация со скринкастами](Vdeos/mgts-defense-with-screencasts.pptx)
 
 Для настроек скопируйте [`.env.example`](.env.example) в локальный `.env`. Исходные XLSX и файлы OAuth храните в локальной папке `data/`.
