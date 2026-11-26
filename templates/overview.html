@@ -1,118 +1,101 @@
 {% extends "base.html" %}
-{% from "dashboard_parts.html" import signal_badge, answer_badge, score_bar, chart_legend %}
-{% block header_status %}
-<span class="sync sync-{{ poll.state }}" title="{{ poll.checked_at or 'Синхронизация ещё не запускалась' }}">
-  <span aria-hidden="true"></span> Google Forms · {{ {'ready':'синхронизация работает','disabled':'не подключён','pending':'синхронизация','error':'ошибка синхронизации'}[poll.state] }}
-</span>
-{% endblock %}
+{% block title %}Обзор программы · Стажировки МГТС{% endblock %}
 {% block content %}
-<section class="hero">
-  <div class="hero-copy"><h1>Обзор программы</h1>
-    <p>Динамика оценок и сигналы по стажировкам за шесть контрольных периодов.</p>
-    {% if synthetic %}<span class="demo-note">Демонстрационные данные</span>{% endif %}
-  </div>
-  <a class="button button-on-dark" href="{{ url_for('overview', month=month, department=selected, signal=selected_signal) }}">Обновить данные</a>
-</section>
-
-<form class="filters" method="get">
-  <label>Контрольный период<select name="month">{% for i in range(1,7) %}<option value="{{ i }}" {{ 'selected' if i == month }}>Месяц {{ i }}</option>{% endfor %}</select></label>
-  <label>Подразделение<select name="department"><option value="">Все подразделения</option>{% for d in departments %}<option {{ 'selected' if d == selected }}>{{ d }}</option>{% endfor %}</select></label>
-  <label>Сигнал<select name="signal"><option value="">Все статусы</option>{% for key, label in colors.items() %}<option value="{{ key }}" {{ 'selected' if key == selected_signal }}>{{ label }}</option>{% endfor %}</select></label>
-  <button class="button button-primary" type="submit">Показать</button>
-  {% if selected or selected_signal %}<a class="reset-link" href="{{ url_for('overview', month=month) }}">Сбросить</a>{% endif %}
-</form>
-
-<section class="stats" aria-label="Показатели выбранного месяца">
-  <article class="stat stat-attention">
-    <span class="stat-label">Требуют внимания</span><strong>{{ signal_counts.red + signal_counts.yellow }}</strong>
-    <span class="stat-context">{{ signal_counts.red }} критичных · {{ signal_counts.yellow }} в зоне внимания</span>
-  </article>
-  {% for label, count in [('Ответы стажёров', intern_count), ('Ответы наставников', mentor_count)] %}
-  <article class="stat">
-    <span class="stat-label">{{ label }}</span><strong>{{ count }}<span> / {{ person_count }}</span></strong>
-    <div class="progress" aria-hidden="true"><i style="--fill: {{ (count * 100 / person_count)|round(1) if person_count else 0 }}%"></i></div>
-    <span class="stat-context">За месяц {{ month }}{% if person_count %} · не ответили: {{ person_count - count }}{% endif %}</span>
-  </article>
-  {% endfor %}
-  <article class="stat stat-history">
-    <span class="stat-label">Версий анкет в истории</span><strong>{{ versions }}</strong>
-    <span class="stat-context">Вся программа</span>
-  </article>
-</section>
-
-{% if has_history and person_count %}
-<div class="two-up">
-  <section class="panel chart-panel" aria-labelledby="program-trend">
-    <div class="panel-heading">
-      <div><h2 id="program-trend">Динамика оценок</h2><p class="muted">Средние оценки стажёров из 5{% if selected %} · {{ selected }}{% endif %}</p></div>
-    </div>
-    {{ chart_legend("Удовлетворённость", "Комфортность нагрузки") }}
-    <div class="chart">
-      <div class="chart-axis" aria-hidden="true">{% for value in range(5, -1, -1) %}<span>{{ value }}</span>{% endfor %}</div>
-      <div class="chart-main">
-        <div class="chart-plot" aria-hidden="true">
-        {% for period, satisfaction, workload, _ in trend %}
-          <div class="chart-group {{ 'is-current' if period == month }}">{{ score_bar(satisfaction, 'a') }}{{ score_bar(workload, 'b') }}</div>
-        {% endfor %}
-        </div>
-        <div class="chart-labels">
-        {% for period, satisfaction, workload, count in trend %}
-          <a class="{{ 'is-current' if period == month }}" {% if period == month %}aria-current="true"{% endif %}
-             aria-label="Месяц {{ period }}. Удовлетворённость: {{ satisfaction if satisfaction is not none else 'нет данных' }}. Комфортность нагрузки: {{ workload if workload is not none else 'нет данных' }}. Ответов: {{ count }}."
-             href="{{ url_for('overview', month=period, department=selected, signal=selected_signal) }}">{{ period }}<span> мес.</span></a>
-        {% endfor %}
-        </div>
-      </div>
-    </div>
-    <details class="chart-values"><summary>Значения по месяцам</summary>
-      <div class="scroll" tabindex="0" role="region" aria-label="Числовые значения графика">
-        <table class="metrics"><thead><tr><th scope="col">Показатель</th>{% for period, _, _, _ in trend %}<th scope="col">{{ period }} мес.</th>{% endfor %}</tr></thead>
-        <tbody>
-          {% for label, index in [('Удовлетворённость', 1), ('Комфортность нагрузки', 2), ('Ответов', 3)] %}
-          <tr><th scope="row">{{ label }}</th>{% for values in trend %}{% set value = values[index] %}<td>{{ ('%g'|format(value))|replace('.', ',') if value is not none else '—' }}</td>{% endfor %}</tr>
-          {% endfor %}
-        </tbody></table>
-      </div>
-    </details>
-  </section>
-
-  <section class="panel signal-panel" aria-labelledby="signals">
-    <div class="panel-heading"><div><h2 id="signals">Сигналы за месяц {{ month }}</h2><p class="muted">Статусы стажёров в выбранном срезе</p></div></div>
-    <div class="distribution" aria-hidden="true">
-      {% for key in ('red', 'yellow', 'gray', 'green') if signal_counts[key] %}
-      <i class="distribution-{{ key }}" style="--weight: {{ signal_counts[key] }}"></i>
-      {% endfor %}
-    </div>
-    <ul class="signal-list">
-      {% for key in ('red', 'yellow', 'gray', 'green') %}
-      <li><a class="{{ 'is-active' if selected_signal == key }}" href="{{ url_for('overview', month=month, department=selected, signal='' if selected_signal == key else key, _anchor='participants') }}" {% if selected_signal == key %}aria-current="true"{% endif %}>
-        {{ signal_badge(key, colors[key]) }}<strong>{{ signal_counts[key] }}</strong>
-      </a></li>
-      {% endfor %}
-    </ul>
-  </section>
+<div class="heading">
+  <h1>Обзор программы</h1>
+  <a class="button button-secondary" href="{{ overview_url }}">Обновить страницу</a>
 </div>
-{% endif %}
-
-<section class="panel participants" id="participants" aria-labelledby="participants-title">
-  <div class="panel-heading">
-    <div><h2 id="participants-title">Стажёры</h2>
-    <p class="muted">Месяц {{ month }} · показано {{ cards|length }} из {{ person_count }}{% if selected_signal %} · {{ colors[selected_signal]|lower }}{% endif %}</p></div>
-    {% if selected_signal %}<a href="{{ url_for('overview', month=month, department=selected, _anchor='participants') }}">Все статусы</a>{% endif %}
-  </div>
+<nav class="section-nav" aria-label="На этой странице">
+  <a href="#interns">Стажёры</a>
+  <a href="#trend">Динамика</a>
+  <a href="#sources">Источники данных</a>
+</nav>
+<form class="filters" method="get" action="{{ url_for('overview') }}">
+  <label>Период
+    <select name="month">
+      {% for i in range(1, 7) %}<option value="{{ i }}"{% if i == month %} selected{% endif %}>Месяц {{ i }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Подразделение
+    <select name="department">
+      <option value="">Все подразделения</option>
+      {% for department in departments %}<option value="{{ department }}"{% if department == selected %} selected{% endif %}>{{ department }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Сигнал
+    <select name="signal"><option value="">Все статусы</option>
+      {% for code, label in colors.items() %}<option value="{{ code }}"{% if code == selected_signal %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <button class="button" type="submit">Показать</button>
+</form>
+{% if synthetic %}<p class="notice">В сводку включены демонстрационные анкеты.</p>{% endif %}
+<section id="interns" class="dashboard-section" aria-labelledby="interns-heading">
+  <h2 id="interns-heading">Стажёры · месяц {{ month }}</h2>
+  <dl class="stats">
+    <div><dt>Анкеты стажёров</dt><dd>{{ intern_count }} из {{ person_count }}</dd></div>
+    <div><dt>Анкеты наставников</dt><dd>{{ mentor_count }} из {{ person_count }}</dd></div>
+  </dl>
   {% if cards %}
-  <div class="scroll" tabindex="0" role="region" aria-label="Стажёры и статус опросов">
-  <table class="participants-table"><thead><tr><th scope="col">Стажёр</th><th scope="col">Сигнал и причина</th><th scope="col">Анкета стажёра</th><th scope="col">Анкета наставника</th></tr></thead>
-  <tbody>{% for card in cards %}
-    <tr>
-      <td class="participant"><a href="{{ url_for('detail', intern_id=card.intern_id, month=month, department=selected, signal=selected_signal) }}">{{ card.intern_id }} <span aria-hidden="true">↗</span></a><small>{{ card.department }}</small></td>
-      <td>{{ signal_badge(card.color, card.label) }}{% for reason in card.warnings[:2] %}<small class="reason">{{ reason }}</small>{% endfor %}</td>
-      <td><span class="mobile-label">Анкета стажёра</span>{{ answer_badge(card.intern) }}</td>
-      <td><span class="mobile-label">Анкета наставника</span>{{ answer_badge(card.mentor) }}</td>
-    </tr>
-  {% endfor %}</tbody></table>
-  </div>
-  {% elif has_history %}<p class="empty-state">По этим фильтрам ничего не найдено. <a href="{{ url_for('overview', month=month) }}">Сбросить фильтры</a>.</p>
-  {% else %}<p class="empty-state">Нет анкет. Добавьте обе книги XLSX в папку данных и перезапустите приложение.</p>{% endif %}
+  <table class="roster" role="table" aria-labelledby="interns-heading">
+    <thead role="rowgroup"><tr role="row">
+      <th scope="col" role="columnheader">Стажёр</th><th scope="col" role="columnheader">Подразделение</th>
+      <th scope="col" role="columnheader">Анкета стажёра</th><th scope="col" role="columnheader">Анкета наставника</th><th scope="col" role="columnheader">Сигнал</th>
+    </tr></thead>
+    <tbody role="rowgroup">
+      {% for card in cards %}
+      <tr role="row">
+        <th scope="row" role="rowheader"><a href="{{ url_for('detail', intern_id=card.intern_id, month=month, department=selected or None, signal=selected_signal or None) }}">{{ card.intern_id }}</a></th>
+        <td role="cell" class="roster-department">{{ card.department }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Стажёр</span>{{ 'Получена' if card.intern else 'Нет ответа' }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Наставник</span>{{ 'Получена' if card.mentor else 'Нет ответа' }}</td>
+        <td role="cell" class="roster-signal">
+          <span class="badge {{ card.color }}">{{ card.label }}</span>
+          {% if card.warnings %}<small>{{ card.warnings[0] }}</small>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif selected_signal and person_count %}
+  <p class="notice">Нет стажёров с выбранным сигналом. <a href="{{ url_for('overview', month=month, department=selected or None) }}">Показать все статусы</a></p>
+  {% elif selected %}
+  <p class="notice">По этому подразделению нет анкет. <a href="{{ url_for('overview', month=month) }}">Показать все подразделения</a></p>
+  {% else %}
+  <p class="notice">Нет анкет. Добавьте обе книги в папку данных и перезапустите приложение.</p>
+  {% endif %}
+</section>
+<section id="trend" class="dashboard-section" aria-labelledby="trend-heading">
+  <h2 id="trend-heading">Динамика оценок</h2>
+  <p class="muted">Средняя оценка стажёров из 5{% if selected %} · {{ selected }}{% endif %}</p>
+  {% if trend|selectattr('3')|list %}
+  {% for index, title in [(1, 'Удовлетворённость стажировкой'), (2, 'Комфортность нагрузки')] %}
+  <h3>{{ title }}</h3>
+  <ul class="trend" role="list">
+    {% for point in trend %}
+    {% set period, score, count = point[0], point[index], point[3] %}
+    <li>
+      <strong>{{ (score|string)|replace('.', ',') if score is not none else '—' }}</strong>
+      <div class="bar" aria-hidden="true"><i style="height: {{ (score or 0) * 20 }}%"></i></div>
+      <span>Месяц {{ period }}</span>
+      <small>{{ count }} отв.</small>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {% else %}
+  <p>Пока нет оценок стажёров.</p>
+  {% endif %}
+</section>
+<section id="sources" class="dashboard-section" aria-labelledby="sources-heading">
+  <h2 id="sources-heading">Источники данных</h2>
+  <dl class="sources">
+    <div><dt>Записей в истории</dt><dd>{{ versions }}</dd></div>
+    <div>
+      <dt>Google Forms</dt>
+      <dd>{{ {'disabled':'Не подключён','pending':'Ожидаем первый опрос API','ready':'Синхронизация работает','error':'Ошибка синхронизации или некорректные ответы'}[poll.state] }}</dd>
+      {% if poll.checked_at %}<dd class="muted">Последняя проверка · {{ poll.checked_at }}</dd>{% endif %}
+    </div>
+  </dl>
 </section>
 {% endblock %}

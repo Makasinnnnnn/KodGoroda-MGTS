@@ -13,14 +13,14 @@ from threading import Event
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, url_for
 from waitress import serve
 from google_forms import start_polling
 
 from scripts.import_history import FIELDS, parse_period, read_workbook
 
 
-LABELS = {key: label for fields in FIELDS.values() for label, key in fields["scores"].items()}
+LABELS = {key: label for fields in FIELDS.values() for group in fields.values() for label, key in group.items()}
 TASK = {"intern": "task_clarity", "mentor": "task_understanding"}
 THEMES = {"задачи", "поддержка", "нагрузка", "команда", "развитие", "прочее"}
 COLORS = {"green": "Положительная оценка", "yellow": "Зона внимания",
@@ -381,6 +381,10 @@ def create_app(config=None):
     def health():
         return {"status": "ok"}
 
+    @app.get("/start")
+    def start():
+        return render_template("start.html")
+
     @app.post("/webhooks/yandex/<role>")
     def webhook(role):
         if role not in FIELDS:
@@ -442,6 +446,8 @@ def create_app(config=None):
         return render_template("overview.html", cards=visible_cards, month=month, versions=versions,
                                departments=sorted(set(people.values())), selected=selected, trend=trend,
                                poll=poll_status.copy(), selected_signal=selected_signal, colors=COLORS,
+                               overview_url=url_for("overview", month=month, department=selected or None,
+                                                    signal=selected_signal or None),
                                signal_counts=signal_counts,
                                person_count=len(cards), has_history=bool(people),
                                synthetic=any(row["source"] == "synthetic_demo" for row in rows.values()),
@@ -458,6 +464,8 @@ def create_app(config=None):
         if selected_month not in range(1, 7):
             selected_month = 6
         months = chapter(rows, intern_id, result.get("themes", []))
+        filters = dict(month=selected_month, department=request.args.get("department") or None,
+                       signal=request.args.get("signal") or None)
         return render_template("detail.html", intern_id=intern_id, versions=versions,
                                department=next(iter(rows.values()))["department"], field_labels=LABELS, fields=FIELDS,
                                months=months, current_month=months[selected_month - 1],
@@ -466,8 +474,8 @@ def create_app(config=None):
                                    row["source"] == "synthetic_demo" for row in rows.values()
                                ),
                                selected_month=selected_month,
-                               selected_department=request.args.get("department", ""),
-                               selected_signal=request.args.get("signal", ""))
+                               overview_url=url_for("overview", **filters),
+                               detail_url=url_for("detail", intern_id=intern_id, **filters))
 
     return app
 

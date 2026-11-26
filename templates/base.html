@@ -1,17 +1,28 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Стажировки МГТС{% endblock %}</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='start/mgts-logo.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
+  {% block styles %}<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">{% endblock %}
 </head>
 <body>
-<a class="skip-link" href="#content">Перейти к содержанию</a>
-<header class="site-header"><div class="header-inner">
-  <a class="brand" href="{{ url_for('overview') }}"><span class="wordmark">МГТС</span><span>Стажировки</span></a>
-  {% block header_status %}{% endblock %}
-</div></header>
-<main id="content">{% block content %}{% endblock %}</main>
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+  <header class="masthead">
+    <div class="container masthead-inner">
+      <a class="brand" href="{{ url_for('start') }}" aria-label="Стажировки МГТС, о проекте">
+        <img src="{{ url_for('static', filename='start/mgts-logo.svg') }}" alt="" width="48" height="48">
+        <span>Стажировки МГТС</span>
+      </a>
+      <nav class="main-nav" aria-label="Разделы сайта">
+        <a href="{{ url_for('start') }}"{% if request.endpoint == 'start' %} aria-current="page"{% endif %}>О проекте</a>
+        <a href="{{ overview_url|default(url_for('overview')) }}"{% if request.endpoint == 'overview' %} aria-current="page"{% elif request.endpoint == 'detail' %} class="current-section"{% endif %}>Обзор программы</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="container {% block main_class %}dashboard{% endblock %}" tabindex="-1">{% block content %}{% endblock %}</main>
+  {% block footer %}{% endblock %}
 </body>
 </html>
