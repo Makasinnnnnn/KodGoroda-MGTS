@@ -5,96 +5,61 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 
-const output = path.resolve(__dirname, '..');
-const previews = process.env.MGTS_PREVIEW_DIR;
+const output = process.env.MGTS_VIDEO_DIR || path.resolve(__dirname, '..');
 const base = 'http://127.0.0.1:' + (process.env.MGTS_PORT || '18086');
-const fps = 30;
-const initialCursor = { x: 1350, y: 135 };
-const overviewPath = '/?month=6';
-const detailPath = '/interns/DEMO-2?month=6';
-const ease = t => t * t * (3 - 2 * t);
-const phase = (time, start, end) => ease(Math.min(1, Math.max(0, (time - start) / (end - start))));
-const mix = (a, b, p) => a + (b - a) * p;
-const move = (a, b, p) => ({ x: mix(a.x, b.x, p), y: mix(a.y, b.y, p) });
+const overview = '/?month=6';
+const detail = '/interns/DEMO-2?month=6';
+const fps = 15;
+const duration = 10;
 
-async function overlay(page) {
-  await page.evaluate(() => {
-    // Capture-only graphics. The app's HTML, CSS, and data stay intact.
-    const layer = document.createElement('div');
-    layer.id = 'capture-overlay';
-    layer.setAttribute('aria-hidden', 'true');
-    layer.style.cssText = 'all:initial;pointer-events:none;position:fixed;inset:0;z-index:2147483647';
-    const shadow = layer.attachShadow({ mode: 'open' });
-    shadow.innerHTML = `
-      <style>
-        .caption { position:absolute;bottom:22px;left:50%;transform:translateX(-50%);
-          display:flex;align-items:center;gap:17px;box-sizing:border-box;padding:11px 21px;
-          border-radius:10px;background:#102b4b;color:#fff;white-space:nowrap;
-          font:600 22px/1.3 system-ui,sans-serif;box-shadow:0 3px 14px #102b4b2d; }
-        .section { color:#9bddff;font-size:14px;font-weight:750;letter-spacing:.04em;
-          padding-right:16px;border-right:1px solid #ffffff42; }
-        svg { position:absolute;left:0;top:0;overflow:visible;
-          filter:drop-shadow(0 1px 2px #102b4b55); }
-      </style>
-      <div class="caption"><span class="section"></span><span class="text"></span></div>
-      <svg width="24" height="29" viewBox="0 0 24 29">
-        <path d="M2 1.8v22.1l5.8-5.5 4 8.6 3.5-1.7-4-8.5h8.1z"
-          fill="#142b44" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/>
-      </svg>`;
-    document.body.append(layer);
-  });
+function ease(value) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
 }
 
 async function open(page, route) {
-  const response = await page.goto(base + route, { waitUntil: 'load' });
+  const response = await page.goto(base + route);
   assert.equal(response.status(), 200);
   await page.evaluate(() => document.fonts.ready);
-  assert.match(await page.locator('main').innerText(), /Демонстрационный режим/);
-  await overlay(page);
+  assert.match(await page.locator('main').innerText(), /демонстрационн/i);
+  await page.evaluate(() => {
+    const caption = document.createElement('div');
+    caption.id = 'video-caption';
+    caption.style.cssText = 'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;pointer-events:none;white-space:nowrap;padding:11px 20px;color:#fff;background:#102b4b;border-radius:9px;box-shadow:0 4px 14px #102b4b40;font:600 20px/1.3 system-ui,sans-serif';
+    document.body.append(caption);
+  });
 }
 
-async function paint(page, scroll, cursor, section, caption) {
-  await page.mouse.move(cursor.x, cursor.y);
-  await page.evaluate(({ scroll, cursor, section, caption }) => {
-    window.scrollTo(0, scroll);
-    const layer = document.querySelector('#capture-overlay').shadowRoot;
-    layer.querySelector('svg').style.transform = `translate(${cursor.x}px,${cursor.y}px)`;
-    layer.querySelector('.section').textContent = section;
-    layer.querySelector('.text').textContent = caption;
-  }, { scroll, cursor, section, caption });
+async function draw(page, scroll, text) {
+  await page.evaluate(({ scroll, text }) => {
+    window.scrollTo({ top: scroll, behavior: 'instant' });
+    document.querySelector('#video-caption').textContent = text;
+  }, { scroll, text });
 }
 
-async function measure(locator) {
-  const box = await locator.boundingBox();
-  assert.ok(box);
-  return box;
+async function verticalPosition(locator, inset = 35) {
+  return locator.evaluate((element, margin) => Math.max(0, element.getBoundingClientRect().top + window.scrollY - margin), inset);
 }
 
-async function encode(page, file, length, scene) {
-  const target = path.join(output, file + '.mp4');
+async function record(page, file, scene) {
   const encoder = spawn(process.env.FFMPEG || 'ffmpeg', [
-    '-hide_banner', '-loglevel', 'error', '-y',
-    '-f', 'image2pipe', '-framerate', String(fps), '-c:v', 'png', '-i', 'pipe:0',
-    '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', '15', '-pix_fmt', 'yuv420p',
-    '-profile:v', 'high', '-level:v', '4.1', '-movflags', '+faststart', target,
+    '-hide_banner', '-loglevel', 'error', '-y', '-f', 'image2pipe',
+    '-framerate', String(fps), '-c:v', 'mjpeg', '-i', 'pipe:0',
+    '-vf', 'scale=1920:1080:flags=lanczos,fps=30', '-an', '-c:v', 'libx264',
+    '-preset', 'fast', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+    path.join(output, file + '.mp4'),
   ], { stdio: ['pipe', 'ignore', 'inherit'] });
-  const done = once(encoder, 'exit');
-  const frameCount = length * fps;
+  const done = once(encoder, 'close');
   try {
-    let frame;
-    let previous;
-    for (let index = 0; index < frameCount; index += 1) {
-      const signature = JSON.stringify(await scene(index / fps));
-      if (signature !== previous) {
-        frame = await page.screenshot();
-        previous = signature;
-      }
-      if (!encoder.stdin.write(frame)) await once(encoder.stdin, 'drain');
+    for (let frame = 0; frame < fps * duration; frame++) {
+      await scene(frame / fps);
+      const bytes = await page.screenshot({ type: 'jpeg', quality: 94 });
+      if (!encoder.stdin.write(bytes)) await once(encoder.stdin, 'drain');
     }
     encoder.stdin.end();
     const [code] = await done;
     assert.equal(code, 0);
-    process.stdout.write(`${file}.mp4: ${length} s / ${frameCount} frames\n`);
+    console.log(file + '.mp4: ' + duration + ' seconds');
   } catch (error) {
     encoder.kill();
     throw error;
@@ -102,153 +67,67 @@ async function encode(page, file, length, scene) {
 }
 
 async function main() {
+  await fs.mkdir(output, { recursive: true });
   const browser = await chromium.launch({
     executablePath: process.env.CHROMIUM_PATH || undefined,
     headless: true,
     args: ['--hide-scrollbars'],
   });
   try {
-    const context = await browser.newContext({
-      viewport: { width: 1600, height: 900 },
-      deviceScaleFactor: 1.2,
-      locale: 'ru-RU',
-      reducedMotion: 'reduce',
-    });
-    await context.route('**/*', route => {
-      return route.request().url().startsWith(base + '/') ? route.continue() : route.abort();
-    });
-    const page = await context.newPage();
-    const browserErrors = [];
-    page.on('pageerror', error => browserErrors.push(error.message));
-    page.on('response', response => {
-      if (response.status() >= 400) browserErrors.push(`${response.status()} ${response.url()}`);
-    });
-    const health = await context.request.get(base + '/health');
-    assert.equal(health.status(), 200);
-    assert.deepEqual(await health.json(), { status: 'ok' });
+    const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, locale: 'ru-RU' });
+    await page.route('**/*', route => route.request().url().startsWith(base + '/') ? route.continue() : route.abort());
 
-    await open(page, overviewPath);
-    assert.deepEqual(await page.locator('.stats strong').allTextContents(), ['5/5', '4/5', '59']);
-    const internLink = page.getByRole('link', { name: 'DEMO-2', exact: true });
-    assert.match(await internLink.locator('../..').innerText(), /Критич|критич/);
-    const signals = await measure(page.locator('.panel').nth(0));
-    const trends = await measure(page.locator('.panel').nth(1));
-    const link = await measure(internLink);
-    await open(page, detailPath);
-    const periods = await measure(page.locator('.panel').first());
-    const six = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Месяц 6' }) });
-    assert.equal(await six.count(), 1);
-    assert.match(await six.innerText(), /неясны критерии готовности задачи/);
-    const evidence = await measure(page.locator('main .panel').last());
-    const summary = await measure(six.locator('summary'));
-    const comments = await measure(six.locator('blockquote', { hasText: 'неясны критерии' }));
-    console.log({ signals, trends, link, periods, evidence, summary, comments });
+    await open(page, overview);
+    const trend = await verticalPosition(page.locator('#trend'));
+    assert.match(await page.locator('#interns').innerText(), /DEMO-2/);
+    await record(page, '01-overview', async time => {
+      await draw(page, trend * ease((time - 3.2) / 2),
+        time < 4.4 ? 'HR видит охват анкет и стажёров, которым нужна поддержка'
+          : 'Графики выделяют низкие оценки и падения за шесть месяцев');
+    });
 
-    if (previews) {
-      await fs.mkdir(previews, { recursive: true });
-      await paint(page, 0, initialCursor, 'КАРТОЧКА СТАЖЁРА', 'Стажёр и наставник видят ситуацию по-разному');
-      await page.screenshot({ path: path.join(previews, 'card.png') });
-      await paint(page, evidence.y - 25, initialCursor, 'ОСНОВАНИЕ СИГНАЛА', 'В анкетах видны оценки и комментарий стажёра');
-      await page.screenshot({ path: path.join(previews, 'evidence.png') });
-      await open(page, overviewPath);
-      await paint(page, 0, initialCursor, 'ОБЗОР ПРОГРАММЫ', 'HR видит, от кого получены анкеты');
-      await page.screenshot({ path: path.join(previews, 'overview.png') });
-      assert.deepEqual(browserErrors, []);
-      return;
-    }
+    await open(page, overview);
+    const list = await verticalPosition(page.locator('#interns'));
+    let detailOpen = false;
+    await record(page, '02-intern-card', async time => {
+      if (time < 2.4) {
+        await draw(page, list, 'Открываем карточку стажёра с критичным сигналом');
+        return;
+      }
+      if (!detailOpen) {
+        await page.getByRole('link', { name: 'DEMO-2', exact: true }).click();
+        assert.match(page.url(), /\/interns\/DEMO-2/);
+        await open(page, detail);
+        assert.match(await page.locator('.comparison').innerText(), /Месяц 6\s+2\s+4\s+\+2/);
+        detailOpen = true;
+      }
+      await draw(page, 0, 'Шестой месяц: стажёр поставил 2, наставник — 4. Разница +2');
+    });
 
-    // The three sequences below use the real app and native link, mouse and disclosure actions.
-    await recordScenes({ page, internLink, six, link, periods, evidence });
-    assert.deepEqual(browserErrors, []);
+    await open(page, detail);
+    const analysis = page.locator('#analysis');
+    const answer = page.locator('#month-6');
+    const ready = await analysis.getByText('Что может сделать HR.', { exact: true }).count() > 0;
+    const start = await verticalPosition(ready ? analysis : page.locator('#answers'));
+    const end = await verticalPosition(answer);
+    let themeOpen = false;
+    await record(page, '03-signal-evidence', async time => {
+      if (ready && time >= 2.0 && !themeOpen) {
+        const theme = analysis.locator('details').first();
+        if (await theme.count()) await theme.locator('summary').click();
+        themeOpen = true;
+      }
+      const target = ready && time >= 5.4 ? await verticalPosition(answer) : end;
+      const scroll = ready ? start + (target - start) * ease((time - 5.4) / 1.6) : start + (end - start) * ease(time / 2);
+      const text = ready && time < 6
+        ? 'DeepSeek предлагает шаг для HR и показывает основания'
+        : 'Исходные оценки и комментарии помогают проверить сигнал';
+      await draw(page, scroll, text);
+    });
+    console.log('Live model shown: ' + ready);
   } finally {
     await browser.close();
   }
-}
-
-async function recordScenes({ page, internLink, six, link, periods, evidence }) {
-  const side = 1375;
-  const overviewCursor = { x: side, y: 270 };
-  const signalCursor = { x: side, y: 558 };
-  const trendCursor = { x: side, y: 680 };
-  await open(page, overviewPath);
-  await encode(page, '01-overview', 10, async time => {
-    const scroll = mix(0, 78, phase(time, 2.8, 4.1)) + mix(0, 283, phase(time, 6.0, 7.7));
-    const cursor = time < 5.9
-      ? move(overviewCursor, signalCursor, phase(time, 1.2, 3.9))
-      : move(signalCursor, trendCursor, phase(time, 6.0, 7.7));
-    const text = time < 3.2 ? 'Охват анкет за шестой месяц'
-      : time < 6.5 ? 'В списке HR видит, кому требуется внимание'
-        : 'Ниже — динамика средних оценок за полгода';
-    await paint(page, scroll, cursor, 'ОБЗОР ПРОГРАММЫ', text);
-    return [scroll, cursor, text];
-  });
-
-  await open(page, overviewPath);
-  const listScroll = 78;
-  const cardEntry = { x: 254, y: link.y - listScroll - 40 };
-  const clickLink = { x: link.x + link.width * 0.55, y: link.y + link.height / 2 - listScroll };
-  const cardCursor = { x: side, y: 310 };
-  const gapCursor = { x: side, y: periods.y + periods.height - 45 };
-  let onDetail = false;
-  await encode(page, '02-intern-card', 10, async time => {
-    if (time < 1.95) {
-      const cursor = move(cardEntry, clickLink, phase(time, 0, 1.45));
-      const text = 'Открываем стажёра с критичным сигналом';
-      await paint(page, listScroll, cursor, 'КАРТОЧКА СТАЖЁРА', text);
-      return [listScroll, cursor, text];
-    }
-    if (!onDetail) {
-      await Promise.all([
-        page.waitForURL(url => url.pathname === '/interns/DEMO-2', { waitUntil: 'load' }),
-        page.mouse.click(clickLink.x, clickLink.y),
-      ]);
-      assert.equal(await page.locator('h1').innerText(), 'Стажёр DEMO-2');
-      assert.match(await page.locator('.panel').first().locator('tr').last().innerText(), /Месяц 6\s+2\s+4\s+\+2/);
-      await overlay(page);
-      onDetail = true;
-    }
-    const cursor = move(cardCursor, gapCursor, phase(time, 3.0, 5.6));
-    const text = time < 5.6 ? 'Оценки стажёра и наставника за шесть месяцев'
-      : 'Месяц 6: 2 у стажёра, 4 у наставника. Разница +2';
-    await paint(page, 0, cursor, 'КАРТОЧКА СТАЖЁРА', text);
-    return [0, cursor, text];
-  });
-
-  await open(page, detailPath);
-  const disclosure = six.locator('summary');
-  await disclosure.click();
-  assert.equal(await six.getAttribute('open'), null);
-  const closedScroll = await page.evaluate(() => document.documentElement.scrollHeight - innerHeight);
-  const closedSummary = await measure(disclosure);
-  const currentScroll = await page.evaluate(() => scrollY);
-  const clickSummary = {
-    x: closedSummary.x + 52,
-    y: closedSummary.y + currentScroll - closedScroll + closedSummary.height / 2,
-  };
-  const evidenceStart = { x: clickSummary.x - 29, y: clickSummary.y - 70 };
-  const evidenceSide = { x: side, y: clickSummary.y + 1 };
-  const evidenceEnd = { x: side, y: 673 };
-  let expanded = false;
-  await encode(page, '03-signal-evidence', 10, async time => {
-    if (time < 1.47) {
-      const cursor = move(evidenceStart, clickSummary, phase(time, 0, 1.13));
-      const text = 'Раскрываем ответы за шестой месяц';
-      await paint(page, closedScroll, cursor, 'ОСНОВАНИЕ СИГНАЛА', text);
-      return [closedScroll, cursor, text];
-    }
-    if (!expanded) {
-      await page.mouse.click(clickSummary.x, clickSummary.y);
-      assert.notEqual(await six.getAttribute('open'), null);
-      assert.match(await six.locator('ul').innerText(), /Разница по задачам \+2/);
-      expanded = true;
-    }
-    const scroll = mix(closedScroll, evidence.y + 70, phase(time, 1.47, 3.25));
-    const cursor = move(evidenceSide, evidenceEnd, phase(time, 1.47, 3.25));
-    const text = time < 4.4 ? 'Причины сигнала видны над двумя анкетами'
-      : 'Стажёр пишет, что критерии готовности задачи неясны';
-    await paint(page, scroll, cursor, 'ОСНОВАНИЕ СИГНАЛА', text);
-    return [scroll, cursor, text];
-  });
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });
