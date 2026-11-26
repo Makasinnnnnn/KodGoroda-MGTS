@@ -5,8 +5,6 @@
 Нужны Docker и Docker Compose. После сборки локальному сценарию достаточно доступа к loopback.
 
 ```sh
-git clone --branch team/dashboard-polish https://github.com/Makasinnnnnn/KodGoroda-MGTS.git
-cd KodGoroda-MGTS
 docker compose build
 docker compose run --rm dashboard python -m scripts.seed_demo
 ```
