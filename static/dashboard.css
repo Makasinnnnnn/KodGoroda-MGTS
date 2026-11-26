@@ -340,6 +340,9 @@ main {
 .chart-labels a.is-current { font-weight: 800; }
 .chart-values { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .chart-values summary { font-size: .82rem; color: var(--accent); }
+.score-history h2 { margin: 0; color: var(--navy); font-size: 1.15rem; }
+.score-history .muted { margin: 4px 0 0; }
+.score-history .metrics td, .score-history .metrics thead th + th { text-align: center; }
 
 .distribution { display: flex; gap: 3px; height: 9px; margin: 20px 0 10px; }
 .distribution > i { flex: var(--weight); min-width: 2px; border-radius: 3px; }

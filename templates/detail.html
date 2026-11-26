@@ -69,6 +69,26 @@
   </section>
 </div>
 
+<section class="panel score-history" aria-labelledby="score-history-title">
+  <h2 id="score-history-title">Динамика по всем показателям</h2>
+  <p class="muted">Оценки от 1 до 5. Прочерк означает, что анкета за месяц ещё не получена.</p>
+  {% for role, title in [('intern', 'Стажёр'), ('mentor', 'Наставник')] %}
+  <details class="chart-values">
+    <summary>Оценки · {{ title }}</summary>
+    <div class="scroll" tabindex="0" role="region" aria-label="Динамика оценок · {{ title }}">
+      <table class="metrics">
+        <thead><tr><th scope="col">Показатель</th>{% for m in months %}
+          <th scope="col">Месяц {{ m.period }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for label, key in fields[role].scores.items() %}
+          <tr><th scope="row">{{ label }}</th>{% for m in months %}
+            <td>{{ m[role].scores[key] if m[role] else '—' }}</td>{% endfor %}
+          </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
+</section>
+
 <section class="panel analysis-panel" aria-labelledby="analysis-title">
   <div class="panel-heading"><div><h2 id="analysis-title">Разбор комментариев</h2><p class="muted">По истории стажёра</p></div></div>
   {% if state == 'ready' %}

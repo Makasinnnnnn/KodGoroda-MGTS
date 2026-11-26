@@ -5,7 +5,7 @@
 Нужны Docker и Docker Compose. После сборки локальному сценарию достаточно доступа к loopback.
 
 ```sh
-git clone --branch astra/final-delivery https://github.com/Makasinnnnnn/KodGoroda-MGTS.git
+git clone --branch team/dashboard-polish https://github.com/Makasinnnnnn/KodGoroda-MGTS.git
 cd KodGoroda-MGTS
 docker compose build
 docker compose run --rm dashboard python -m scripts.seed_demo
@@ -58,6 +58,10 @@ API бесплатен и подходит для запуска на компь
 Скопируйте `.env.example` в `.env`, задайте `DEEPSEEK_API_KEY`. Включайте `DEEPSEEK_SEND_COMMENTS=1` только после подтверждения, что этот текст разрешено отправлять в DeepSeek. Синтетический набор позволяет отдельно проверить вызов. В модель уходят роль, месяц, текст и идентификатор фрагмента. Имена и ID стажёров не передаются как отдельные поля. Свободный текст может содержать личные данные.
 
 Модель по умолчанию `deepseek-flash`. Приложение проверяет структуру JSON и принадлежность ссылок текущей карточке, показывает исходный фрагмент, роль и месяц. Новая актуальная версия анкеты запускает фоновый разбор. При таймауте оценки доступны, а карточка показывает состояние ошибки. Перезапуск повторяет незавершённые и ошибочные задачи. [Документация DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode/)
+
+Для ключа OrcaRouter укажите `DEEPSEEK_BASE_URL=https://api.orcarouter.ai/v1` и полное имя модели из каталога, например `DEEPSEEK_MODEL=deepseek/deepseek-v4-flash-free`. В поле `DEEPSEEK_API_KEY` положите ключ OrcaRouter. Ключ прямого DeepSeek используется с адресом `https://api.deepseek.com`. [Каталог OrcaRouter](https://www.orcarouter.ai/models)
+
+Если OrcaRouter возвращает HTTP 429 с кодом `free_rate_limited`, проверьте доступ рабочей области к бесплатной модели. После восстановления доступа сначала запустите анализ на синтетической истории в отдельной копии проекта. Код ответа доступен в `docker compose logs dashboard`.
 
 ## Правила светофора
 

@@ -5,11 +5,12 @@ import tempfile
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
-from app import FIELDS, ask_deepseek, create_app, validated_analysis
+from app import DEEPSEEK_DIRECT_URL, DEEPSEEK_ROUTER_URL, FIELDS, ask_deepseek, create_app, validated_analysis
 
 
 def model_reply(observations):
@@ -54,16 +55,26 @@ class AnalysisContractTest(unittest.TestCase):
             validated_analysis(dict(payload, themes=model_reply([])["themes"]), self.evidence)
 
     def test_json_adapter(self):
-        def server(request, timeout):
-            sent = json.loads(request.data)
-            self.assertEqual(json.loads(sent["messages"][1]["content"]), self.evidence)
-            self.assertEqual(sent["response_format"], {"type": "json_object"})
-            self.assertGreater(timeout, 0)
-            content = json.dumps(model_reply([{"id": "a", "kind": "issue"}]))
-            return io.BytesIO(json.dumps({"choices": [{"message": {"content": content}}]}).encode())
-        with patch("app.urlopen", side_effect=server):
-            result = ask_deepseek(self.evidence, "synthetic-key", "deepseek-flash")
-        self.assertEqual(result["themes"][0]["evidence"][0]["text"], self.evidence[0]["text"])
+        content = json.dumps(model_reply([{"id": "a", "kind": "issue"}]))
+        response = json.dumps({"choices": [{"message": {"content": content}}]}).encode()
+        providers = [(DEEPSEEK_DIRECT_URL, "deepseek-flash"),
+                     (DEEPSEEK_ROUTER_URL, "deepseek/deepseek-v4-flash-free")]
+        for base_url, model in providers:
+            with self.subTest(base_url=base_url), patch("app.urlopen", return_value=io.BytesIO(response)) as server:
+                result = ask_deepseek(self.evidence, "synthetic-key", model, base_url + "/")
+                request = server.call_args.args[0]
+                sent = json.loads(request.data)
+                self.assertEqual(request.full_url, base_url + "/chat/completions")
+                self.assertEqual(sent["model"], model)
+                self.assertEqual(json.loads(sent["messages"][1]["content"]), self.evidence)
+                self.assertEqual(sent["response_format"], {"type": "json_object"})
+                self.assertGreater(server.call_args.kwargs["timeout"], 0)
+                self.assertEqual(result["themes"][0]["evidence"][0]["text"], self.evidence[0]["text"])
+
+    def test_unrecognized_provider_never_receives_key(self):
+        with patch("app.urlopen") as server, self.assertRaises(ValueError):
+            ask_deepseek(self.evidence, "synthetic-key", "deepseek-flash", "https://example.invalid")
+        server.assert_not_called()
 
 
 class AnalysisWorkflowTest(unittest.TestCase):
@@ -71,7 +82,7 @@ class AnalysisWorkflowTest(unittest.TestCase):
         entered, release = Event(), Event()
         requests = []
 
-        def provider(evidence, key, model):
+        def provider(evidence, key, model, base_url):
             requests.append(evidence)
             if len(requests) == 1:
                 entered.set()
@@ -95,7 +106,7 @@ class AnalysisWorkflowTest(unittest.TestCase):
             def wait_state(expected):
                 end = time.monotonic() + 4
                 while time.monotonic() < end:
-                    with sqlite3.connect(database) as db:
+                    with closing(sqlite3.connect(database)) as db:
                         state, result = db.execute("SELECT state, result FROM analyses").fetchone()
                     if state == expected:
                         return json.loads(result or "{}")
