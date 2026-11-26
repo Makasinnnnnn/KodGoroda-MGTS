@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
 </head>
 <body>
-<header><a href="{{ url_for('overview') }}">Стажировки МГТС</a><span>Мониторинг программы</span></header>
-<main>{% block content %}{% endblock %}</main>
+<a class="skip-link" href="#content">Перейти к содержанию</a>
+<header class="site-header"><div class="header-inner">
+  <a class="brand" href="{{ url_for('overview') }}"><span class="wordmark">МГТС</span><span>Стажировки</span></a>
+  {% block header_status %}{% endblock %}
+</div></header>
+<main id="content">{% block content %}{% endblock %}</main>
 </body>
 </html>

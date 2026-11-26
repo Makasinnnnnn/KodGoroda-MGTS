@@ -414,6 +414,9 @@ def create_app(config=None):
             cards.append(dict(card, intern_id=intern_id, department=department))
         priorities = {"red": 0, "yellow": 1, "gray": 2, "green": 3}
         cards.sort(key=lambda card: priorities[card["color"]])
+        signal_counts = dict.fromkeys(COLORS, 0)
+        for card in cards:
+            signal_counts[card["color"]] += 1
         trend = []
         for period in range(1, 7):
             scores = [row["scores"] for row in rows.values() if row["role"] == "intern"
@@ -425,6 +428,7 @@ def create_app(config=None):
         return render_template("overview.html", cards=visible_cards, month=month, versions=versions,
                                departments=sorted(set(people.values())), selected=selected, trend=trend,
                                poll=poll_status.copy(), selected_signal=selected_signal, colors=COLORS,
+                               signal_counts=signal_counts,
                                person_count=len(cards), has_history=bool(people),
                                synthetic=any(row["source"] == "synthetic_demo" for row in rows.values()),
                                intern_count=sum(bool(c["intern"]) for c in cards),
@@ -439,9 +443,10 @@ def create_app(config=None):
         selected_month = request.args.get("month", 6, type=int)
         if selected_month not in range(1, 7):
             selected_month = 6
+        months = chapter(rows, intern_id, result.get("themes", []))
         return render_template("detail.html", intern_id=intern_id, versions=versions,
                                department=next(iter(rows.values()))["department"], field_labels=LABELS,
-                               months=chapter(rows, intern_id, result.get("themes", [])),
+                               months=months, current_month=months[selected_month - 1],
                                state=state, result=result,
                                synthetic=intern_id.startswith("DEMO-") or any(
                                    row["source"] == "synthetic_demo" for row in rows.values()

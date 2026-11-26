@@ -1,0 +1,21 @@
+{% macro signal_badge(color, label) -%}
+<span class="badge signal-{{ color }}"><span aria-hidden="true"></span>{{ label }}</span>
+{%- endmacro %}
+
+{% macro answer_badge(row) -%}
+<span class="answer {{ 'answer-in' if row else 'answer-missing' }}">{{ 'Получен' if row else 'Нет ответа' }}</span>
+{%- endmacro %}
+
+{% macro score_bar(score, series) -%}
+<div class="bar-slot">
+  {% if score is not none %}
+  <span class="chart-bar series-{{ series }}" style="--score: {{ score }}">
+    <span>{{ ('%g'|format(score))|replace('.', ',') }}</span>
+  </span>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro chart_legend(first, second) -%}
+<ul class="chart-legend"><li class="legend-a">{{ first }}</li><li class="legend-b">{{ second }}</li></ul>
+{%- endmacro %}
