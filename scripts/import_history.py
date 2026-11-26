@@ -126,14 +126,58 @@ def read_workbook(path, role):
         workbook.close()
 
 
+def verify_case(intern, mentor):
+    """Check the organizer's reference figures against the supplied books."""
+    intern_index = {(row["intern_id"], row["period"]): row for row in intern}
+    mentor_index = {(row["intern_id"], row["period"]): row for row in mentor}
+    pairs = len(intern_index.keys() & mentor_index.keys())
+    cover = [Counter(row["period"] for row in records) for records in (intern, mentor)]
+
+    def monthly_average(field):
+        result = []
+        for period in range(1, 7):
+            scores = [row["scores"][field] for row in intern if row["period"] == period]
+            result.append(round(sum(scores) / len(scores), 1) if scores else None)
+        return result
+
+    def series(index, intern_id, periods, field):
+        return [index.get((intern_id, period), {}).get("scores", {}).get(field) for period in periods]
+
+    checks = [
+        ("Стажёры / наставники / пары", (len(intern), len(mentor), pairs), (30, 30, 30)),
+        ("Охват обеих ролей по месяцам", [[count[period] for period in range(1, 7)] for count in cover],
+         [[5] * 6, [5] * 6]),
+        ("Средняя удовлетворённость", monthly_average("satisfaction"), [4, 4, 4, 4.4, 4.8, 5]),
+        ("Средняя комфортность нагрузки", monthly_average("workload"), [4, 4, 3.8, 3.6, 4.4, 4.8]),
+        ("СТ-003, удовлетворённость", series(intern_index, "СТ-003", range(1, 7), "satisfaction"),
+         [3, 3, 2, 4, 4, 5]),
+        ("СТ-005, стажёр / наставник, месяцы 1–2",
+         [series(intern_index, "СТ-005", (1, 2), "task_clarity"),
+          series(mentor_index, "СТ-005", (1, 2), "task_understanding")], [[2, 2], [4, 4]]),
+    ]
+    mismatches = []
+    for label, actual, expected in checks:
+        print(f"{label}: {actual}")
+        if actual != expected:
+            mismatches.append(f"{label}: ожидалось {expected}")
+    if mismatches:
+        raise ValueError("\n".join(mismatches))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--intern", required=True, type=Path)
     parser.add_argument("--mentor", required=True, type=Path)
     parser.add_argument("--out", type=Path, default=Path("data/history.json"))
+    parser.add_argument("--verify-case", action="store_true", help="check the organizer's reference figures")
     args = parser.parse_args()
     intern = read_workbook(args.intern, "intern")
     mentor = read_workbook(args.mentor, "mentor")
+    if args.verify_case:
+        try:
+            verify_case(intern, mentor)
+        except ValueError as exc:
+            parser.exit(1, f"{exc}\n")
     records = sorted(intern + mentor, key=lambda row: (row["intern_id"], row["period"], row["role"]))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"schema_version": 1, "submissions": records},

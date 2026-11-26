@@ -1,9 +1,10 @@
 :root {
   font: 16px/1.5 system-ui,sans-serif;
-  color: #142332;
-  background: #f1f4f7;
-  --accent: #005d91;
-  --border: #dbe3ea;
+  color: #134074;
+  background: #f1f6fb;
+  --brand-blue: #008ae0;
+  --accent: #0066a8;
+  --border: #d4e2ee;
 }
 
 * {
@@ -15,7 +16,7 @@ body {
 }
 
 header {
-  background: #112d43;
+  background: #134074;
   color: white;
   padding: .9rem max(1rem,calc((100% - 1100px)/2));
   display: flex;
@@ -36,6 +37,16 @@ header span {
 
 a {
   color: var(--accent);
+  text-underline-offset: .15em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+header a:focus-visible {
+  outline-color: white;
 }
 
 main {
@@ -49,6 +60,7 @@ h1,h2,h3,p {
 }
 
 h1 {
+  color: var(--brand-blue);
   font-size: clamp(2rem,5vw,3rem);
   line-height: 1.1;
 }
@@ -65,15 +77,12 @@ h2 {
   margin: 1rem 0;
 }
 
-.eyebrow,.muted,.status,small {
+.muted,.status,small {
   color: #516477;
 }
 
-.eyebrow {
-  font-size: .82rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .08em;
+.heading p {
+  margin: .35rem 0 0;
 }
 
 .status {
@@ -101,6 +110,7 @@ h2 {
   border: 1px solid var(--border);
   border-radius: .5rem;
   background: white;
+  min-height: 2.75rem;
 }
 
 .button,button {
@@ -108,6 +118,10 @@ h2 {
   background: var(--accent);
   text-decoration: none;
   cursor: pointer;
+}
+
+.button:hover, button:hover {
+  background: #134074;
 }
 
 .stats,.pair {
@@ -141,43 +155,21 @@ h2 {
   margin-top: 1rem;
 }
 
-.trend {
-  display: grid;
-  grid-template-columns: repeat(6,1fr);
-  gap: .5rem;
-  text-align: center;
-}
-
-.trend>div {
-  display: grid;
-  justify-items: center;
-  min-width: 0;
-}
-
-.trend span {
-  font-size: .76rem;
-}
-
-.bar {
-  height: 5rem;
-  width: min(2.5rem,85%);
-  background: #e8f0f5;
-  position: relative;
-  border-radius: .3rem;
-  overflow: hidden;
-  margin: .2rem auto;
-}
-
-.bar i {
-  background: #1385b8;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
+.metrics td, .metrics thead th + th {
+  text-align: right;
+  white-space: nowrap;
 }
 
 .scroll {
   overflow-x: auto;
+}
+
+.scroll-hint {
+  display: none;
+}
+
+.participant {
+  white-space: nowrap;
 }
 
 table {
@@ -185,6 +177,7 @@ table {
   width: 100%;
   text-align: left;
   font-size: .9rem;
+  font-variant-numeric: tabular-nums;
 }
 
 th,td {
@@ -244,7 +237,7 @@ summary {
 blockquote {
   margin: .6rem 0;
   padding: .35rem .7rem;
-  border-left: 3px solid #55a5c6;
+  border-left: 1px solid #008ae0;
   background: #f4f8fa;
   overflow-wrap: anywhere;
 }
@@ -262,6 +255,10 @@ dd {
 }
 
 @media(max-width:700px) {
+  .scroll-hint {
+    display: block;
+    font-size: .85rem;
+  }
   .stats,.pair {
     grid-template-columns: 1fr;
   }
@@ -270,9 +267,6 @@ dd {
   }
   .panel {
     padding: .8rem;
-  }
-  .trend span {
-    font-size: .65rem;
   }
   th,td {
     padding: .5rem;

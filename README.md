@@ -11,6 +11,10 @@
 - [План реализации и сдачи на 180 минут](docs/10-final-execution.md)
 - [Как подключаем ИИ и что требуется уточнить](docs/llm-decision.md)
 
+С чистого клона начните с [синтетического демо в Docker](docs/run.md#синтетическое-демо-из-чистого-клона). Для проверки исходных книг и подключения внешних сервисов см. [инструкцию запуска](docs/run.md).
+
+[Презентация и сценарий защиты](docs/defense/README.md).
+
 ## Ветки
 
 | Ветка | Зона ответственности |
@@ -31,7 +35,7 @@
 
 ```powershell
 py -m pip install -r requirements-import.txt
-py scripts/import_history.py --intern data/intern.xlsx --mentor data/mentor.xlsx
+py scripts/import_history.py --intern data/intern.xlsx --mentor data/mentor.xlsx --verify-case
 ```
 
 Подставьте пути к выданным книгам. Команда проверяет поля, оценки, периоды и повтор строк внутри каждой роли, затем сохраняет `data/history.json`. Это первичная загрузка истории. Автоматический приём из форм подключается к тому же контракту отдельным адаптером.

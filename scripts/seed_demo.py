@@ -10,7 +10,7 @@ def main():
     path = Path("data/history.json")
     if path.exists() or any(Path("data").glob("*.xlsx")) or Path("data/dashboard.sqlite").exists():
         raise SystemExit("Use an empty data directory for the synthetic demo.")
-    departments = ["Технический блок", "IT", "HR-блок"]
+    departments = ["Технический блок", "IT", "HR-блок", "Коммерческий блок", "Административный блок"]
     records = []
     for person, department in enumerate(departments, 1):
         for month in range(1, 7):
@@ -22,6 +22,8 @@ def main():
                 if person == 2 and role == "intern" and month in (5, 6):
                     scores.update(task_clarity=2, satisfaction=3)
                     comments["difficulties"] = "Демонстрационный отзыв: неясны критерии готовности задачи."
+                if person == 2 and role == "mentor" and month in (5, 6):
+                    scores["task_understanding"] = 4
                 records.append({
                     "source": "synthetic_demo", "form_id": role,
                     "submission_id": f"demo:{role}:{person}:{month}", "role": role,

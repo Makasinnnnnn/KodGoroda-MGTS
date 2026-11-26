@@ -8,4 +8,6 @@ COPY scripts ./scripts
 COPY templates ./templates
 COPY static ./static
 EXPOSE 8080
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 \
+    CMD ["python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8080/health', timeout=2).close()"]
 CMD ["python", "app.py"]
