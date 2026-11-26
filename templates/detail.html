@@ -60,7 +60,7 @@
   </div>
   {% for theme in result.themes %}
   <details class="disclosure">
-    <summary>{{ theme.topic|capitalize }}{% if theme.repeated %} · повторяется{% endif %}</summary>
+    <summary>{{ theme.topic|capitalize }}{% if theme.status_label %} · {{ theme.status_label }}{% endif %}{% if theme.repeated %} · повторяется{% endif %}</summary>
     {% for e in theme.evidence %}
     <blockquote>
       <small>Месяц {{ e.month }} · {{ 'стажёр' if e.role == 'intern' else 'наставник' }}</small>
@@ -92,7 +92,7 @@
           {% for key, comment in row.comments.items() if comment %}
           <blockquote id="comment-{{ row.record_id }}-{{ key }}" tabindex="-1"><small>{{ field_labels[key] }}</small><p>{{ comment }}</p></blockquote>
           {% endfor %}
-          <small>Источник · {{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы','synthetic_demo':'синтетическая история'}.get(row.source, row.source) }}</small>
+          <small>Источник · {% if row.source == 'yandex_forms' and row.form_id.startswith('local-demo-') %}локальная симуляция вебхука{% else %}{{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы','synthetic_demo':'синтетическая история'}.get(row.source, row.source) }}{% endif %}</small>
           {% else %}<p class="muted">Нет ответа</p>{% endif %}
         </div>
         {% endfor %}

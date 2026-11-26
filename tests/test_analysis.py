@@ -65,6 +65,8 @@ class AnalysisContractTest(unittest.TestCase):
                 request = server.call_args.args[0]
                 sent = json.loads(request.data)
                 self.assertEqual(request.full_url, base_url + "/chat/completions")
+                self.assertEqual(request.get_header("Authorization"), "Bearer synthetic-key")
+                self.assertNotIn("Authorization", request.headers)
                 self.assertEqual(sent["model"], model)
                 self.assertEqual(json.loads(sent["messages"][1]["content"]), self.evidence)
                 self.assertEqual(sent["response_format"], {"type": "json_object"})
@@ -134,6 +136,11 @@ class AnalysisWorkflowTest(unittest.TestCase):
                              comments={"difficulties": "Синтетика: критерии неясны."})
                 second = dict(first, submission_id="live:v2", submitted_at="2026-01-02T00:00:00Z",
                               comments={"difficulties": "Синтетика: критерии уточнены."})
+                self.assertEqual(client.post("/webhooks/yandex/intern", json=first).status_code, 401)
+                for change in ({"submitted_at": "0001-01-01T00:00:00+01:00"}, {"period": 7}):
+                    invalid = post(dict(first, **change))
+                    self.assertEqual(invalid.status_code, 422)
+                    self.assertIn("error", invalid.get_json())
                 try:
                     self.assertEqual(post(first).status_code, 202)
                     self.assertTrue(entered.wait(2))

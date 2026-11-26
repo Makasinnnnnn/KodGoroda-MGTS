@@ -20,7 +20,8 @@ def call(credentials, suffix, body=None):
     if not credentials.valid:
         credentials.refresh(GoogleAuthRequest())
     req = Request(API + suffix, data=json.dumps(body).encode() if body is not None else None,
-                  headers={"Authorization": f"Bearer {credentials.token}", "Content-Type": "application/json"})
+                  headers={"Content-Type": "application/json"})
+    req.add_unredirected_header("Authorization", f"Bearer {credentials.token}")
     with urlopen(req, timeout=15) as response:
         return json.load(response)
 
