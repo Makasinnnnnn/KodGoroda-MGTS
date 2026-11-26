@@ -11,6 +11,7 @@ const overview = '/?month=6';
 const detail = '/interns/DEMO-2?month=6';
 const fps = 15;
 const duration = 10;
+const newFeedback = 'Критерии готовности пришли после начала работы. Пришлось дважды переделать отчёт.';
 
 function ease(value) {
   const t = Math.max(0, Math.min(1, value));
@@ -18,7 +19,8 @@ function ease(value) {
 }
 
 async function open(page, route) {
-  const response = await page.goto(base + route);
+  const navigation = await page.goto(base + route);
+  const response = navigation || await page.reload();
   assert.equal(response.status(), 200);
   await page.evaluate(() => document.fonts.ready);
   assert.match(await page.locator('main').innerText(), /демонстрационн/i);
@@ -66,6 +68,60 @@ async function record(page, file, scene) {
   }
 }
 
+async function recordRecommendation(page) {
+  const webhookToken = process.env.MGTS_WEBHOOK_TOKEN;
+  assert.ok(webhookToken, 'Set the webhook token of the isolated demo');
+  await open(page, detail + '#answers');
+  const submission = await page.request.post(base + '/webhooks/yandex/intern', {
+    headers: { 'X-Webhook-Token': webhookToken },
+    data: {
+      form_id: 'local-demo-intern', submission_id: 'video-recommendation-' + Date.now(),
+      intern_id: 'DEMO-2', department: 'IT', period: 6,
+      scores: { task_clarity: 2, mentor_support: 4, workload: 4, interest: 5,
+        development: 4, team_interaction: 5, satisfaction: 3 },
+      comments: { difficulties: newFeedback },
+    },
+  });
+  assert.equal(submission.status(), 202);
+  await open(page, detail + '#answers');
+  const feedback = page.locator('#month-6 blockquote').filter({ hasText: newFeedback });
+  assert.equal(await feedback.count(), 1);
+  const sourcePosition = await verticalPosition(feedback, 90);
+
+  let showAnalysis = false;
+  let position;
+  await record(page, '04-deepseek-advice', async time => {
+    if (time < 2.4) {
+      await draw(page, sourcePosition, 'Новый отзыв: стажёр дважды переделал отчёт');
+      return;
+    }
+    if (!showAnalysis) {
+      let ready = false;
+      for (let attempt = 0; attempt < 38; attempt++) {
+        const response = await page.request.get(base + detail);
+        const html = await response.text();
+        if (html.includes('<strong>Что может сделать HR.</strong>')) {
+          ready = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 1250));
+      }
+      assert.ok(ready, 'DeepSeek did not produce a recommendation for the new response');
+      await open(page, detail + '#analysis');
+      position = await verticalPosition(page.locator('#analysis'), 24);
+      showAnalysis = true;
+    }
+    if (time >= 6 && !await page.locator('#analysis details[open]').count()) {
+      const matchingTheme = page.locator('#analysis details').filter({ hasText: newFeedback }).first();
+      assert.equal(await matchingTheme.count(), 1, 'The model must cite the new comment');
+      await matchingTheme.locator('summary').click();
+    }
+    await draw(page, position, time < 6
+      ? 'После анализа DeepSeek предлагает конкретный шаг для HR'
+      : 'Куратор раскрывает источник и проверяет совет');
+  });
+}
+
 async function main() {
   await fs.mkdir(output, { recursive: true });
   const browser = await chromium.launch({
@@ -77,6 +133,10 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, locale: 'ru-RU' });
     await page.route('**/*', route => route.request().url().startsWith(base + '/') ? route.continue() : route.abort());
 
+    if (process.argv.includes('--deepseek-only')) {
+      await recordRecommendation(page);
+      return;
+    }
     await open(page, overview);
     const trend = await verticalPosition(page.locator('#trend'));
     assert.match(await page.locator('#interns').innerText(), /DEMO-2/);
