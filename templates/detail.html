@@ -1,32 +1,123 @@
 {% extends "base.html" %}
 {% block title %}{{ intern_id }} · Стажировки МГТС{% endblock %}
 {% block content %}
-<a class="muted" href="{{ url_for('overview',month=selected_month) }}">← Обзор программы</a>
-<div class="heading"><div><p class="eyebrow">{{ department }}</p><h1>Стажёр {{ intern_id }}</h1></div>
-<a class="button" href="{{ request.full_path }}">Обновить</a></div>
-<p class="status">{{ versions }} версий анкет в истории · оценки от 1 до 5</p>
-<section class="panel"><h2>Как менялось понимание задач</h2><div class="scroll"><table>
-<thead><tr><th>Период</th><th>Понятность задач · стажёр</th><th>Понимание задач · наставник</th><th>Разница</th><th>Статус</th></tr></thead>
-<tbody>{% for m in months %}<tr>
-<td>Месяц {{ m.period }}</td><td>{{ m.intern.scores.task_clarity if m.intern else '—' }}</td>
-<td>{{ m.mentor.scores.task_understanding if m.mentor else '—' }}</td><td>{{ '%+d'|format(m.gap) if m.gap is not none else '—' }}</td>
-<td><span class="badge {{ m.color }}">{{ m.label }}</span></td></tr>{% endfor %}</tbody></table></div></section>
-<section class="panel"><h2>Разбор комментариев</h2>
-{% if state=='ready' %}<p>{{ result.summary }}</p><p><strong>Что может сделать HR.</strong> {{ result.action }}</p>
-{% for theme in result.themes %}<details><summary>{{ theme.topic|capitalize }}{% if theme.repeated %} · повторяется{% endif %}</summary>
-{% for e in theme.evidence %}<blockquote><small>Месяц {{ e.month }} · {{ 'стажёр' if e.role=='intern' else 'наставник' }}</small>{{ e.text }}</blockquote>{% endfor %}
-</details>{% endfor %}
-{% else %}<p class="muted">{{ {'disabled':'DeepSeek не подключён или отправка комментариев отключена.','pending':'Разбор обновляется.','error':'DeepSeek не вернул пригодный результат.','no_comments':'Нет текстовых ответов.'}.get(state,'Разбор пока недоступен.') }}</p>{% endif %}
+<a class="back-link" href="{{ overview_url }}#interns">К списку стажёров</a>
+<div class="heading detail-heading">
+  <div><h1>Стажёр {{ intern_id }}</h1><p class="muted">{{ department }} · Записей в истории: {{ versions }}</p></div>
+  <a class="button button-secondary" href="{{ detail_url }}">Обновить страницу</a>
+</div>
+{% if synthetic %}<p class="notice">В карточке есть демонстрационные анкеты.</p>{% endif %}
+<nav class="section-nav" aria-label="На этой странице">
+  <a href="#scores">Динамика оценок</a>
+  <a href="#analysis">Разбор комментариев</a>
+  <a href="#answers">Исходные ответы</a>
+</nav>
+<section id="scores" class="dashboard-section" aria-labelledby="scores-heading">
+  <h2 id="scores-heading">Динамика оценок</h2>
+  <p class="muted">Понимание задач по оценкам обеих сторон. Разница рассчитана как оценка наставника минус оценка стажёра.</p>
+    <table class="comparison" role="table" aria-label="Сравнение оценок по задачам">
+      <thead role="rowgroup"><tr role="row">
+        <th scope="col" role="columnheader">Период</th>
+        <th scope="col" role="columnheader" aria-label="Понятность задач · стажёр"><span class="long-label">Понятность задач · стажёр</span><span class="mobile-label">Стажёр</span></th>
+        <th scope="col" role="columnheader" aria-label="Понимание задач · наставник"><span class="long-label">Понимание задач · наставник</span><span class="mobile-label">Наставник</span></th>
+        <th scope="col" role="columnheader">Разница</th><th scope="col" role="columnheader" class="signal-label">Сигнал</th>
+      </tr></thead>
+      <tbody role="rowgroup">
+      {% for m in months %}
+        <tr role="row">
+          <th scope="row" role="rowheader"><a href="#month-{{ m.period }}">Месяц {{ m.period }}</a></th>
+          <td role="cell">{{ m.intern.scores.task_clarity if m.intern else '—' }}</td>
+          <td role="cell">{{ m.mentor.scores.task_understanding if m.mentor else '—' }}</td>
+          <td role="cell">{{ '%+d'|format(m.gap) if m.gap else (m.gap if m.gap is not none else '—') }}</td>
+          <td role="cell" class="comparison-signal"><span class="badge {{ m.color }}">{{ m.label }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% for role, title in [('intern', 'Все оценки стажёра'), ('mentor', 'Все оценки наставника')] %}
+  <details class="disclosure">
+    <summary>{{ title }}</summary>
+    <p class="scroll-hint muted">Прокрутите таблицу по горизонтали, чтобы увидеть все месяцы.</p>
+    <div class="scroll" tabindex="0" role="region" aria-label="{{ title }} по месяцам">
+      <table class="metrics">
+        <thead><tr><th scope="col">Показатель</th>{% for m in months %}<th scope="col">Месяц {{ m.period }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for label, key in fields[role].scores.items() %}
+          <tr><th scope="row">{{ label }}</th>{% for m in months %}<td>{{ m[role].scores[key] if m[role] else '—' }}</td>{% endfor %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endfor %}
 </section>
-<section class="panel"><h2>Ответы по контрольным периодам</h2>
-{% for m in months %}<details {{ 'open' if selected_month==m.period }}>
-<summary>Месяц {{ m.period }} · {{ m.label }}</summary>
-{% if m.warnings %}<ul>{% for w in m.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
-<div class="pair">{% for row, title in [(m.intern,'Стажёр'),(m.mentor,'Наставник')] %}
-<div><h3>{{ title }}</h3>{% if row %}<dl>{% for k,v in row.scores.items() %}<dt>{{ field_labels[k] }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>
-{% for comment in row.comments.values() if comment %}<blockquote>{{ comment }}</blockquote>{% endfor %}
-<small>Источник: {{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы'}.get(row.source,row.source) }}</small>
-{% else %}<p class="muted">Нет ответа</p>{% endif %}</div>{% endfor %}</div>
-</details>{% endfor %}</section>
-{% if state=='pending' %}<script>setTimeout(() => { if (!document.querySelector('details:focus')) location.reload(); }, 10000)</script>{% endif %}
+<section id="analysis" class="dashboard-section" aria-labelledby="analysis-heading">
+  <h2 id="analysis-heading">Разбор комментариев</h2>
+  {% if state == 'ready' %}
+  <div class="analysis-copy">
+    <p>{{ result.summary }}</p>
+    {% if result.insufficient_data %}<p class="muted">Комментариев недостаточно для уверенного вывода.</p>{% endif %}
+    <p><strong>Что может сделать HR.</strong> {{ result.action }}</p>
+  </div>
+  {% for theme in result.themes %}
+  <details class="disclosure">
+    <summary>{{ theme.topic|capitalize }}{% if theme.status_label %} · {{ theme.status_label }}{% endif %}{% if theme.repeated %} · повторяется{% endif %}</summary>
+    {% for e in theme.evidence %}
+    <blockquote>
+      <small>Месяц {{ e.month }} · {{ 'стажёр' if e.role == 'intern' else 'наставник' }}</small>
+      <p>{{ e.text }}</p>
+      <a href="#comment-{{ e.id|replace(':', '-') }}">К исходному комментарию</a>
+    </blockquote>
+    {% endfor %}
+  </details>
+  {% endfor %}
+  {% else %}
+  <p class="notice">{{ {'disabled':'DeepSeek не подключён или отправка комментариев отключена.','pending':'Разбор обновляется.','error':'DeepSeek не вернул пригодный результат.','no_comments':'Нет текстовых ответов.'}.get(state,'Разбор пока недоступен.') }}</p>
+  {% endif %}
+</section>
+<section id="answers" class="dashboard-section" aria-labelledby="answers-heading">
+  <h2 id="answers-heading">Исходные ответы</h2>
+  {% for m in months %}
+  <details class="disclosure"{% if selected_month == m.period %} open data-initial-open{% endif %}>
+    <summary><span>Месяц {{ m.period }}</span><span class="badge {{ m.color }}">{{ m.label }}</span></summary>
+    <div id="month-{{ m.period }}" tabindex="-1">
+      {% if m.warnings %}<ul class="reason-list">{% for warning in m.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+      <div class="pair">
+        {% for row, title in [(m.intern, 'Стажёр'), (m.mentor, 'Наставник')] %}
+        <div>
+          <h3>{{ title }}</h3>
+          {% if row %}
+          <dl class="score-list">
+            {% for label, key in fields[row.role].scores.items() if key in row.scores %}<dt>{{ label }}</dt><dd>{{ row.scores[key] }}</dd>{% endfor %}
+          </dl>
+          {% for key, comment in row.comments.items() if comment %}
+          <blockquote id="comment-{{ row.record_id }}-{{ key }}" tabindex="-1"><small>{{ field_labels[key] }}</small><p>{{ comment }}</p></blockquote>
+          {% endfor %}
+          <small>Источник · {% if row.source == 'yandex_forms' and row.form_id.startswith('local-demo-') %}локальная проверка вебхука{% else %}{{ {'historical_xlsx':'исторический XLSX','google_forms':'Google Forms','yandex_forms':'Яндекс Формы','synthetic_demo':'синтетическая история'}.get(row.source, row.source) }}{% endif %}</small>
+          {% if row.submitted_at %}<small>Дата ответа · <time datetime="{{ row.submitted_at }}">{{ row.submitted_at[:19]|replace('T', ' ') }} UTC</time></small>{% endif %}
+          {% else %}<p class="muted">Нет ответа</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+  {% endfor %}
+</section>
+<script>
+  function revealAnswer() {
+    const target = document.getElementById(location.hash.slice(1));
+    const answer = target?.closest('#answers details');
+    if (answer && !answer.open) {
+      answer.open = true;
+      target.scrollIntoView();
+    }
+  }
+  revealAnswer();
+  window.addEventListener('hashchange', revealAnswer);
+  {% if state == 'pending' %}
+  setTimeout(() => {
+    if (!location.hash && document.activeElement === document.body && !document.querySelector('details[open]:not([data-initial-open])')) location.reload();
+  }, 10000);
+  {% endif %}
+</script>
 {% endblock %}

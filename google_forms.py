@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2.credentials import Credentials
+from scripts.import_history import FIELDS
 
 
 API = "https://forms.googleapis.com/v1/forms"
@@ -48,10 +49,27 @@ def start_polling(accept, stop, status, logger=None):
     logger = logger or logging.getLogger(__name__)
     forms_file = Path(os.getenv("GOOGLE_FORMS_CONFIG", "data/google-forms.json"))
     token_file = Path(os.getenv("GOOGLE_FORMS_TOKEN", "data/google-token.json"))
-    if not (forms_file.is_file() and token_file.is_file()):
+    if not forms_file.exists() and not token_file.exists():
         return None
     interval = max(5, int(os.getenv("GOOGLE_POLL_SECONDS", "15")))
     forms = json.loads(forms_file.read_text(encoding="utf-8"))
+    if not isinstance(forms, dict) or forms.keys() != FIELDS.keys():
+        raise ValueError("Нужны настройки обеих форм")
+    for role, form in forms.items():
+        required = {"intern_id", "period", "department", *FIELDS[role]["scores"].values(),
+                    *FIELDS[role]["comments"].values()}
+        if role == "mentor":
+            required.add("mentor_id")
+        if not isinstance(form, dict):
+            raise ValueError(f"Неверные настройки формы для {role}")
+        ids = form.get("questions")
+        if (not isinstance(form.get("form_id"), str) or not form["form_id"]
+                or not isinstance(ids, dict) or required != ids.keys()
+                or not all(isinstance(q, str) and q for q in ids.values())
+                or len(set(ids.values())) != len(ids)):
+            raise ValueError(f"Неверные настройки question ID для {role}")
+    if forms["intern"]["form_id"] == forms["mentor"]["form_id"]:
+        raise ValueError("Нужны две разные формы")
     credentials = Credentials.from_authorized_user_file(str(token_file), SCOPES)
 
     def poll():

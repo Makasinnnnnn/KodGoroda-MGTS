@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Обратная связь по стажировкам МГТС{% endblock %}
+{% block styles %}
+  <meta name="description" content="Обратная связь по программе стажировок МГТС: анкеты стажёров и наставников, динамика оценок и сигналы для HR.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='start/start.css') }}">
+{% endblock %}
+{% block main_class %}start-page{% endblock %}
+{% block content %}
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <h1 id="page-title"><span>Обратная связь</span> <span>по стажировкам</span></h1>
+        <p>Ответы стажёров и наставников за шесть месяцев помогают HR понять, кому нужна поддержка и почему.</p>
+        <a class="primary-link" href="{{ url_for('overview') }}">
+          Открыть аналитику
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+      <img class="hero-image" src="{{ url_for('static', filename='start/mgts-hero.webp') }}" alt="" width="1536" height="864" fetchpriority="high">
+    </section>
+
+    <section id="process" class="process" aria-labelledby="process-title">
+      <h2 id="process-title">Как это работает</h2>
+      <ol class="process-steps">
+        <li>
+          <h3>Сбор анкет</h3>
+          <p>Раз в месяц стажёр и наставник заполняют отдельные анкеты. Новые ответы дополняют историю стажировки.</p>
+        </li>
+        <li>
+          <h3>Сопоставление ответов</h3>
+          <p>Система сравнивает оценки по месяцам и выделяет расхождения. ИИ помогает находить общие темы в комментариях.</p>
+        </li>
+        <li>
+          <h3>Работа с сигналами</h3>
+          <p>HR открывает карточку стажёра, проверяет исходные ответы и решает, что обсудить со стажёром или наставником.</p>
+        </li>
+      </ol>
+    </section>
+{% endblock %}
+{% block footer %}
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>Кейс-чемпионат «Код города»</span>
+      <a href="https://github.com/Makasinnnnnn/KodGoroda-MGTS/blob/main/docs/run.md">Документация</a>
+      <a href="https://github.com/Makasinnnnnn/KodGoroda-MGTS">
+        Исходный код
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 18 18 6M8 6h10v10" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+  </footer>
+{% endblock %}

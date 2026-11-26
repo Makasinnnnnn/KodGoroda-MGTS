@@ -1,32 +1,102 @@
 {% extends "base.html" %}
+{% block title %}Обзор программы · Стажировки МГТС{% endblock %}
 {% block content %}
-<div class="heading"><div><p class="eyebrow">Шесть контрольных точек</p><h1>Обзор программы</h1></div>
-  <a class="button" href="{{ request.full_path }}">Обновить</a>
+<div class="heading">
+  <h1>Обзор программы</h1>
+  <a class="button button-secondary" href="{{ overview_url }}">Обновить страницу</a>
 </div>
-<form class="filters" method="get">
-  <label>Период<select name="month">{% for i in range(1,7) %}<option value="{{ i }}" {{ 'selected' if i==month }}>Месяц {{ i }}</option>{% endfor %}</select></label>
-  <label>Подразделение<select name="department"><option value="">Все подразделения</option>{% for d in departments %}<option {{ 'selected' if d==selected }}>{{ d }}</option>{% endfor %}</select></label>
-  <button type="submit">Показать</button>
+<nav class="section-nav" aria-label="На этой странице">
+  <a href="#interns">Стажёры</a>
+  <a href="#trend">Динамика</a>
+  <a href="#sources">Источники данных</a>
+</nav>
+<form class="filters" method="get" action="{{ url_for('overview') }}">
+  <label>Период
+    <select name="month">
+      {% for i in range(1, 7) %}<option value="{{ i }}"{% if i == month %} selected{% endif %}>Месяц {{ i }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Подразделение
+    <select name="department">
+      <option value="">Все подразделения</option>
+      {% for department in departments %}<option value="{{ department }}"{% if department == selected %} selected{% endif %}>{{ department }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Сигнал
+    <select name="signal">
+      <option value="">Все статусы</option>
+      {% for key, label in colors.items() %}
+      <option value="{{ key }}"{% if key == selected_signal %} selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="button" type="submit">Показать</button>
 </form>
-<div class="stats">
-  <div><span>Анкеты стажёров · месяц {{ month }}</span><strong>{{ intern_count }}/{{ cards|length }}</strong></div>
-  <div><span>Анкеты наставников · месяц {{ month }}</span><strong>{{ mentor_count }}/{{ cards|length }}</strong></div>
-  <div><span>Версий анкет в истории</span><strong>{{ versions }}</strong></div>
-</div>
-<p class="status">Google Forms · {{ {'disabled':'не подключён','pending':'первый опрос API','ready':'синхронизация работает','error':'ошибка синхронизации или некорректные ответы'}[poll.state] }}{% if poll.checked_at %} · {{ poll.checked_at }}{% endif %}</p>
-{% if synthetic %}<p class="status"><strong>Демонстрационный режим.</strong> История сгенерирована для проверки приложения.</p>{% endif %}
-<section class="panel">
-  <h2>Удовлетворённость стажировкой</h2>
-  <p class="muted">Средняя оценка стажёров из 5</p>
-  <div class="trend">{% for period, score, count in trend %}
-    <div><strong>{{ score if score is not none else '—' }}</strong><div class="bar"><i style="height:{{ (score or 0) * 20 }}%"></i></div><span>Месяц {{ period }}</span><small>{{ count }} отв.</small></div>
-  {% endfor %}</div>
+{% if synthetic %}<p class="notice">В сводку включены демонстрационные анкеты.</p>{% endif %}
+<section id="interns" class="dashboard-section" aria-labelledby="interns-heading">
+  <h2 id="interns-heading">Стажёры · месяц {{ month }}</h2>
+  <dl class="stats">
+    <div><dt>Анкеты стажёров</dt><dd>{{ intern_count }} из {{ person_count }}</dd></div>
+    <div><dt>Анкеты наставников</dt><dd>{{ mentor_count }} из {{ person_count }}</dd></div>
+  </dl>
+  {% if cards %}
+  <table class="roster" role="table" aria-labelledby="interns-heading">
+    <thead role="rowgroup"><tr role="row">
+      <th scope="col" role="columnheader">Стажёр</th><th scope="col" role="columnheader">Подразделение</th>
+      <th scope="col" role="columnheader">Анкета стажёра</th><th scope="col" role="columnheader">Анкета наставника</th><th scope="col" role="columnheader">Сигнал</th>
+    </tr></thead>
+    <tbody role="rowgroup">
+      {% for card in cards %}
+      <tr role="row">
+        <th scope="row" role="rowheader"><a href="{{ url_for('detail', intern_id=card.intern_id, month=month, department=selected or None, signal=selected_signal or None) }}">{{ card.intern_id }}</a></th>
+        <td role="cell" class="roster-department">{{ card.department }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Стажёр</span>{{ 'Получена' if card.intern else 'Нет ответа' }}</td>
+        <td role="cell"><span class="mobile-label" aria-hidden="true">Наставник</span>{{ 'Получена' if card.mentor else 'Нет ответа' }}</td>
+        <td role="cell" class="roster-signal">
+          <span class="badge {{ card.color }}">{{ card.label }}</span>
+          {% if card.warnings %}<small>{{ card.warnings[0] }}</small>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% elif has_history %}
+  <p class="notice">По этим фильтрам ничего не найдено. <a href="{{ url_for('overview', month=month) }}">Сбросить фильтры</a>.</p>
+  {% else %}
+  <p class="notice">Нет анкет. Добавьте обе книги в папку данных и перезапустите приложение.</p>
+  {% endif %}
 </section>
-<section class="panel"><h2>Стажёры · месяц {{ month }}</h2><div class="scroll">
-<table><thead><tr><th>Стажёр</th><th>Подразделение</th><th>Стажёр ответил</th><th>Наставник ответил</th><th>Сигнал</th></tr></thead><tbody>
-{% for card in cards %}<tr><td><a href="{{ url_for('detail', intern_id=card.intern_id, month=month) }}"><strong>{{ card.intern_id }} →</strong></a></td><td>{{ card.department }}</td>
-<td>{{ 'Да' if card.intern else 'Нет ответа' }}</td><td>{{ 'Да' if card.mentor else 'Нет ответа' }}</td>
-<td><span class="badge {{ card.color }}">{{ card.label }}</span>{% if card.warnings %}<small>{{ card.warnings[0] }}</small>{% endif %}</td></tr>
-{% else %}<tr><td colspan="5">Нет анкет. Добавьте обе книги в папку данных и перезапустите приложение.</td></tr>{% endfor %}
-</tbody></table></div></section>
+<section id="trend" class="dashboard-section" aria-labelledby="trend-heading">
+  <h2 id="trend-heading">Динамика оценок</h2>
+  <p class="muted">Средняя оценка стажёров из 5{% if selected %} · {{ selected }}{% endif %}</p>
+  {% if person_count %}
+    {% for metric, heading in [(1, 'Удовлетворённость'), (2, 'Комфортность нагрузки')] %}
+    <h3 class="trend-heading">{{ heading }}</h3>
+    <ul class="trend" aria-label="{{ heading }}">
+      {% for values in trend %}{% set period, score, count = values[0], values[metric], values[3] %}
+      <li>
+        <strong>{{ ('%g'|format(score))|replace('.', ',') if score is not none else '—' }}</strong>
+        <div class="bar" aria-hidden="true"><i style="height: {{ (score or 0) * 20 }}%"></i></div>
+        <a href="{{ url_for('overview', month=period, department=selected or None, signal=selected_signal or None, _anchor='trend') }}"
+           {% if month == period %}aria-current="true"{% endif %}>Месяц {{ period }}</a>
+        <small>{{ count }} отв.</small>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+  {% else %}
+  <p>Пока нет оценок стажёров.</p>
+  {% endif %}
+</section>
+<section id="sources" class="dashboard-section" aria-labelledby="sources-heading">
+  <h2 id="sources-heading">Источники данных</h2>
+  <dl class="sources">
+    <div><dt>Записей в истории</dt><dd>{{ versions }}</dd></div>
+    <div>
+      <dt>Google Forms</dt>
+      <dd>{{ {'disabled':'Не подключён','pending':'Ожидаем первый опрос API','ready':'Синхронизация работает','error':'Ошибка синхронизации или некорректные ответы'}[poll.state] }}</dd>
+      {% if poll.checked_at %}<dd class="muted">Последняя проверка · {{ poll.checked_at }}</dd>{% endif %}
+    </div>
+  </dl>
+</section>
 {% endblock %}
